@@ -1,0 +1,2808 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流動帳 | Money Flow Score</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#15171a;
+  --panel:#1c1f24;
+  --panel2:#22262c;
+  --border:#2b2f36;
+  --text:#e8e6e1;
+  --dim:#8b9099;
+  --dim2:#5f6570;
+  --jade:#4fb286;
+  --jade-dim:#2f6b52;
+  --coral:#c97b4a;
+  --coral-dim:#8a5333;
+  --steel:#5b8dbf;
+  --steel-dim:#3a5c7a;
+  --gold:#d4a94e;
+  --gold-dim:#8a6f34;
+  --danger:#c75c5c;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+.serif{font-family:'Instrument Serif',serif;}
+
+/* ---------- shell ---------- */
+.app{max-width:920px;margin:0 auto;padding:20px 16px 80px;}
+.header{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  margin-bottom:18px;flex-wrap:wrap;gap:12px;
+}
+.eyebrow{
+  font-size:11px;letter-spacing:.18em;color:var(--dim2);
+  text-transform:uppercase;margin:0 0 2px;
+}
+.title{
+  font-family:'Instrument Serif',serif;font-size:34px;font-style:italic;
+  margin:0;color:var(--text);line-height:1;
+}
+.month-picker{
+  display:flex;align-items:center;gap:8px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:6px 10px;
+}
+.month-picker button{
+  background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;
+  padding:2px 6px;border-radius:6px;
+}
+.month-picker button:hover{background:var(--panel2);color:var(--text);}
+.month-picker .mval{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--text);min-width:78px;text-align:center;}
+
+.tabs{
+  display:flex;gap:4px;border-bottom:1px solid var(--border);
+  margin-bottom:20px;overflow-x:auto;
+}
+.tab-btn{
+  background:none;border:none;color:var(--dim);font-family:'Inter',sans-serif;
+  font-size:13.5px;font-weight:500;padding:10px 14px;cursor:pointer;
+  border-bottom:2px solid transparent;white-space:nowrap;
+}
+.tab-btn.active{color:var(--text);border-bottom-color:var(--jade);}
+.tab-btn:hover:not(.active){color:var(--text);}
+
+.panel{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;padding:18px;margin-bottom:16px;
+}
+.panel h3{
+  margin:0 0 14px;font-size:13px;font-weight:600;color:var(--dim);
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+@media(max-width:640px){.grid3{grid-template-columns:repeat(2,1fr);} .grid2{grid-template-columns:1fr;}}
+
+/* ---------- score ---------- */
+.score-row{display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
+.score-ring-wrap{position:relative;width:132px;height:132px;flex-shrink:0;}
+.score-num{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.score-num .n{font-family:'Instrument Serif',serif;font-size:44px;font-style:italic;line-height:1;}
+.score-num .lbl{font-size:9px;color:var(--dim2);letter-spacing:.12em;margin-top:2px;text-transform:uppercase;}
+.score-breakdown{flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px;}
+.sb-row{display:flex;align-items:center;gap:10px;}
+.sb-label{font-size:12px;color:var(--dim);width:112px;flex-shrink:0;}
+.sb-bar{flex:1;height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;}
+.sb-fill{height:100%;border-radius:4px;}
+.sb-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);width:38px;text-align:right;flex-shrink:0;}
+
+/* ---------- pulse chart ---------- */
+.pulse-wrap{position:relative;}
+canvas#pulseCanvas{width:100%;height:140px;display:block;}
+.pulse-legend{display:flex;gap:16px;font-size:11px;color:var(--dim);margin-top:8px;}
+.pulse-legend span{display:inline-flex;align-items:center;gap:5px;}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+
+/* ---------- kpi cards ---------- */
+.kpi-card{background:var(--panel2);border-radius:10px;padding:12px 14px;}
+.kpi-label{font-size:11px;color:var(--dim);margin-bottom:6px;}
+.kpi-val{font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;}
+.pos{color:var(--jade);} .neg{color:var(--coral);} .neutral{color:var(--text);}
+
+/* ---------- category bars ---------- */
+.cat-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.cat-bar-label{font-size:12.5px;width:88px;flex-shrink:0;color:var(--dim);}
+.cat-bar-track{flex:1;height:16px;background:var(--panel2);border-radius:5px;overflow:hidden;}
+.cat-bar-fill{height:100%;border-radius:5px;}
+.cat-bar-amt{font-family:'JetBrains Mono',monospace;font-size:12px;width:88px;text-align:right;color:var(--dim);}
+
+/* ---------- forms ---------- */
+label{font-size:12px;color:var(--dim);display:block;margin-bottom:4px;}
+input[type=text],input[type=number],input[type=date],input[type=month],select,textarea{
+  width:100%;background:var(--panel2);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:8px 10px;font-size:13.5px;
+  font-family:'Inter',sans-serif;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--jade-dim);outline-offset:1px;}
+.field{margin-bottom:12px;}
+.btn{
+  background:var(--jade);color:#0f1512;border:none;border-radius:8px;
+  padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;
+}
+.btn:hover{background:#5fc296;}
+.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--border);}
+.btn.secondary:hover{background:var(--border);}
+.btn.danger{background:var(--panel2);color:var(--coral);border:1px solid var(--coral-dim);}
+.btn.small{padding:5px 10px;font-size:12px;}
+.btn:focus-visible,.tab-btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--jade);outline-offset:2px;}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;}
+.form-row>.field{flex:1;min-width:110px;}
+
+/* ---------- table ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{
+  text-align:left;font-size:11px;color:var(--dim2);text-transform:uppercase;
+  letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--border);
+}
+td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.type-tag{
+  font-size:10.5px;padding:2px 7px;border-radius:20px;font-weight:600;
+  display:inline-block;
+}
+.type-income{background:rgba(79,178,134,.15);color:var(--jade);}
+.type-fixed{background:rgba(201,123,74,.15);color:var(--coral);}
+.type-variable{background:rgba(91,141,191,.15);color:var(--steel);}
+.type-savings{background:rgba(212,169,78,.15);color:var(--gold);}
+.row-actions{display:flex;gap:6px;}
+.icon-btn{
+  background:none;border:none;color:var(--dim2);cursor:pointer;font-size:13px;
+  padding:2px 5px;
+}
+.icon-btn:hover{color:var(--text);}
+
+.empty-state{text-align:center;padding:36px 20px;color:var(--dim2);font-size:13px;}
+.filter-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;}
+.filter-row .field{margin-bottom:0;min-width:130px;}
+
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+  align-items:center;justify-content:center;z-index:100;padding:16px;
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:20px;max-width:480px;width:100%;max-height:86vh;overflow-y:auto;
+}
+.modal h3{margin-top:0;}
+.modal-close-row{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+.progress-track{height:10px;background:var(--panel2);border-radius:6px;overflow:hidden;margin:10px 0;}
+.progress-fill{height:100%;border-radius:6px;background:var(--gold);}
+
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:var(--panel2);border:1px solid var(--border);color:var(--text);
+  padding:10px 18px;border-radius:10px;font-size:13px;z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.toast.show{opacity:1;}
+
+.help-text{font-size:11.5px;color:var(--dim2);margin-top:4px;line-height:1.5;}
+.section-gap{margin-top:18px;}
+.csv-preview{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--panel2);
+  border-radius:8px;padding:10px;max-height:140px;overflow:auto;white-space:pre;color:var(--dim);}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   流動帳 - Money Flow Score
+   単一HTMLファイル / vanilla JS / localStorage永続化
+   ========================================================= */
+
+const STORAGE_KEY = 'moneyFlowLedger_v1';
+const SYNC_CONFIG_KEY = 'moneyFlowLedger_syncConfig_v1';
+
+function loadSyncConfig(){
+  try{
+    const raw = localStorage.getItem(SYNC_CONFIG_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { apiUrl: '', token: '', deviceName: '', lastKnownRemoteUpdatedAt: null };
+}
+function saveSyncConfig(){
+  localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(syncConfig));
+}
+let syncConfig = loadSyncConfig();
+let syncStatus = 'idle'; // idle | syncing | synced | error | conflict
+let syncStatusMessage = '';
+let syncPushTimer = null;
+
+const PAYMENT_METHODS_BY_TYPE = {
+  income: ['銀行振込','現金','その他'],
+  fixed: ['銀行引落','PayPayカード','現金','その他'],
+  variable: ['PayPayカード','現金','その他'],
+  savings: ['銀行振込','現金','その他'],
+};
+const PAYMENT_LABEL_BY_TYPE = {
+  income: '受取方法',
+  fixed: '支払方法',
+  variable: '支払方法',
+  savings: '方法',
+};
+function paymentMethodsFor(type){ return PAYMENT_METHODS_BY_TYPE[type] || PAYMENT_METHODS_BY_TYPE.variable; }
+function paymentLabelFor(type){ return PAYMENT_LABEL_BY_TYPE[type] || '支払方法'; }
+const TYPE_LABEL = {income:'収入', fixed:'固定費', variable:'変動費', savings:'貯蓄'};
+const TYPE_COLOR = {income:'var(--jade)', fixed:'var(--coral)', variable:'var(--steel)', savings:'var(--gold)'};
+
+function defaultCategories(){
+  return [
+    {id:'inc_salary', name:'給与', type:'income'},
+    {id:'inc_bonus', name:'賞与', type:'income'},
+    {id:'inc_other', name:'その他収入', type:'income'},
+    {id:'fix_mortgage', name:'住宅ローン', type:'fixed'},
+    {id:'fix_insurance', name:'保険', type:'fixed'},
+    {id:'fix_tax', name:'税金', type:'fixed'},
+    {id:'fix_subscription', name:'サブスク', type:'fixed'},
+    {id:'fix_juku', name:'塾代', type:'fixed'},
+    {id:'fix_allowance', name:'妻子こづかい', type:'fixed'},
+    {id:'var_food', name:'食費', type:'variable'},
+    {id:'var_daily', name:'日用品', type:'variable'},
+    {id:'var_eatout', name:'外食', type:'variable'},
+    {id:'var_fun', name:'娯楽', type:'variable'},
+    {id:'var_transport', name:'交通費', type:'variable'},
+    {id:'var_medical', name:'医療', type:'variable'},
+    {id:'var_other', name:'その他変動費', type:'variable'},
+    {id:'sav_travel', name:'旅行貯蓄', type:'savings'},
+    {id:'sav_other', name:'その他貯蓄', type:'savings'},
+  ];
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(!parsed.categories || !parsed.categories.length) parsed.categories = defaultCategories();
+      if(!parsed.transactions) parsed.transactions = [];
+      if(!parsed.settings) parsed.settings = {};
+      if(!parsed.recurring) parsed.recurring = [];
+      if(!parsed.appliedRecurring) parsed.appliedRecurring = [];
+      if(!parsed.accounts) parsed.accounts = [];
+      if(!parsed.cards) parsed.cards = [];
+      if(!parsed.transfers) parsed.transfers = [];
+      return parsed;
+    }
+  }catch(e){ console.error('load failed', e); }
+  return { categories: defaultCategories(), transactions: [], settings: {}, recurring: [], appliedRecurring: [], accounts: [], cards: [], transfers: [] };
+}
+
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  scheduleSyncPush();
+}
+
+/* ---------- GAS 同期 ---------- */
+function updateSyncStatus(status, message){
+  syncStatus = status;
+  syncStatusMessage = message || '';
+  renderSyncIndicator();
+}
+function renderSyncIndicator(){
+  const el = document.getElementById('syncIndicator');
+  if(!el) return;
+  if(!syncConfig.apiUrl){ el.innerHTML = ''; return; }
+  const map = {
+    idle: {icon:'○', color:'var(--dim2)', label:'未同期'},
+    syncing: {icon:'◐', color:'var(--gold)', label:'同期中…'},
+    synced: {icon:'●', color:'var(--jade)', label:'同期済み'},
+    error: {icon:'⚠', color:'var(--coral)', label:'同期エラー'},
+    conflict: {icon:'⚠', color:'var(--coral)', label:'競合あり'},
+  };
+  const m = map[syncStatus] || map.idle;
+  el.innerHTML = `<span style="color:${m.color};font-size:11px;" title="${syncStatusMessage||m.label}">${m.icon} ${m.label}</span>`;
+}
+
+function scheduleSyncPush(){
+  if(!syncConfig.apiUrl) return;
+  clearTimeout(syncPushTimer);
+  syncPushTimer = setTimeout(()=> pushToRemote(false), 1500);
+}
+
+async function pushToRemote(force){
+  if(!syncConfig.apiUrl) return;
+  updateSyncStatus('syncing');
+  try{
+    const res = await fetch(syncConfig.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        data: state,
+        baseUpdatedAt: syncConfig.lastKnownRemoteUpdatedAt,
+        token: syncConfig.token || undefined,
+        deviceName: syncConfig.deviceName || undefined,
+        force: !!force
+      })
+    });
+    const json = await res.json();
+    if(json.ok){
+      syncConfig.lastKnownRemoteUpdatedAt = json.updatedAt;
+      saveSyncConfig();
+      updateSyncStatus('synced');
+    } else if(json.error === 'conflict'){
+      updateSyncStatus('conflict', json.message);
+    } else {
+      updateSyncStatus('error', json.error);
+    }
+  }catch(err){
+    updateSyncStatus('error', String(err));
+  }
+}
+
+async function pullFromRemote(){
+  if(!syncConfig.apiUrl) return null;
+  updateSyncStatus('syncing');
+  try{
+    const url = syncConfig.apiUrl + (syncConfig.token ? ('?token=' + encodeURIComponent(syncConfig.token)) : '');
+    const res = await fetch(url);
+    const json = await res.json();
+    if(json.ok){
+      syncConfig.lastKnownRemoteUpdatedAt = json.updatedAt;
+      saveSyncConfig();
+      updateSyncStatus('synced');
+      return json.data;
+    } else {
+      updateSyncStatus('error', json.error);
+      return null;
+    }
+  }catch(err){
+    updateSyncStatus('error', String(err));
+    return null;
+  }
+}
+
+async function initialSync(){
+  if(!syncConfig.apiUrl) return;
+  const remoteData = await pullFromRemote();
+  if(remoteData){
+    state = normalizeLoadedState_(remoteData);
+    saveState();
+    renderApp();
+    toast('GASと同期しました');
+  }
+}
+function normalizeLoadedState_(parsed){
+  if(!parsed.categories || !parsed.categories.length) parsed.categories = defaultCategories();
+  if(!parsed.transactions) parsed.transactions = [];
+  if(!parsed.settings) parsed.settings = {};
+  if(!parsed.recurring) parsed.recurring = [];
+  if(!parsed.appliedRecurring) parsed.appliedRecurring = [];
+  if(!parsed.accounts) parsed.accounts = [];
+  if(!parsed.cards) parsed.cards = [];
+  if(!parsed.transfers) parsed.transfers = [];
+  return parsed;
+}
+
+let state = loadState();
+let currentTab = 'dashboard';
+let currentMonth = new Date().toISOString().slice(0,7);
+let txFilter = { month: currentMonth, type: 'all', search: '', flaggedOnly: false };
+let selectedTxIds = new Set();
+
+function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
+function pct(n){ return Math.round(n*100) + '%'; }
+
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=> el.classList.remove('show'), 2200);
+}
+
+function openModal(html){
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.getElementById('modalBody').innerHTML = '';
+}
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'modalOverlay') closeModal();
+});
+
+/* ---------- month helpers ---------- */
+function shiftMonth(ym, delta){
+  let [y,m] = ym.split('-').map(Number);
+  m += delta;
+  while(m<1){ m+=12; y--; }
+  while(m>12){ m-=12; y++; }
+  return y + '-' + String(m).padStart(2,'0');
+}
+function monthsBetween(a,b){
+  const [ay,am] = a.split('-').map(Number);
+  const [by,bm] = b.split('-').map(Number);
+  return (by-ay)*12 + (bm-am);
+}
+function monthLabel(ym){
+  const [y,m] = ym.split('-');
+  return y + '年' + Number(m) + '月';
+}
+function getPastMonths(endYm, n){
+  const arr = [];
+  for(let i=n-1;i>=0;i--) arr.push(shiftMonth(endYm, -i));
+  return arr;
+}
+
+/* ---------- data queries ---------- */
+function catById(id){ return state.categories.find(c=>c.id===id); }
+function txForMonth(ym){
+  return state.transactions.filter(t=> t.date.slice(0,7) === ym);
+}
+function getMonthlyTotals(ym){
+  const txs = txForMonth(ym);
+  let income=0, fixed=0, variable=0, savings=0;
+  txs.forEach(t=>{
+    const cat = catById(t.categoryId);
+    if(!cat) return;
+    if(cat.type==='income') income += t.amount;
+    else if(cat.type==='fixed') fixed += t.amount;
+    else if(cat.type==='variable') variable += t.amount;
+    else if(cat.type==='savings') savings += t.amount;
+  });
+  return { income, fixed, variable, savings, net: income - fixed - variable };
+}
+function sumTravelSavingsUpTo(ym){
+  return state.transactions
+    .filter(t=> t.categoryId === 'sav_travel' && t.date.slice(0,7) <= ym)
+    .reduce((s,t)=> s + t.amount, 0);
+}
+function availableMonths(){
+  const set = new Set(state.transactions.map(t=> t.date.slice(0,7)));
+  set.add(currentMonth);
+  return Array.from(set).sort();
+}
+
+/* ---------- travel goal ---------- */
+function computeTravelProgress(ym){
+  const goal = state.settings.travelGoal;
+  if(!goal || !goal.amount || !goal.targetMonth) return null;
+  const start = goal.startMonth || ym;
+  const totalMonths = Math.max(1, monthsBetween(start, goal.targetMonth) + 1);
+  const elapsedMonths = Math.max(1, monthsBetween(start, ym) + 1);
+  const requiredPace = goal.amount / totalMonths;
+  const savedSoFar = sumTravelSavingsUpTo(ym);
+  const actualPace = savedSoFar / elapsedMonths;
+  const onTrackRatio = requiredPace > 0 ? actualPace / requiredPace : 0;
+  const monthsRemaining = Math.max(0, monthsBetween(ym, goal.targetMonth));
+  return { savedSoFar, requiredPace, actualPace, onTrackRatio, monthsRemaining, totalMonths, goal };
+}
+
+/* ---------- composite score ---------- */
+function computeScore(ym){
+  const totals = getMonthlyTotals(ym);
+  const savingsRate = totals.income > 0 ? totals.net / totals.income : 0;
+  const aScore = clamp(savingsRate / 0.30, 0, 1) * 40;
+
+  const fixedRatio = totals.income > 0 ? totals.fixed / totals.income : 0;
+  const bScore = clamp((0.8 - fixedRatio) / 0.5, 0, 1) * 25;
+
+  const pastMonths = getPastMonths(ym, 6);
+  const nets = pastMonths
+    .filter(m => txForMonth(m).length > 0)
+    .map(m => getMonthlyTotals(m).net);
+  let cScore;
+  if(nets.length < 2){
+    cScore = 10; // データ不足のため中立点
+  } else {
+    const mean = nets.reduce((s,v)=>s+v,0) / nets.length;
+    const variance = nets.reduce((s,v)=> s + Math.pow(v-mean,2), 0) / nets.length;
+    const sd = Math.sqrt(variance);
+    const cv = mean !== 0 ? Math.abs(sd / mean) : (sd === 0 ? 0 : 2);
+    cScore = clamp(1 - cv, 0, 1) * 20;
+  }
+
+  const travel = computeTravelProgress(ym);
+  let dScore = null;
+  let total;
+  if(travel){
+    dScore = clamp(travel.onTrackRatio, 0, 1) * 15;
+    total = aScore + bScore + cScore + dScore;
+  } else {
+    total = (aScore + bScore + cScore) / 85 * 100;
+  }
+
+  return {
+    total: Math.round(clamp(total,0,100)),
+    components: {
+      savings: {score: aScore, max: 40, label:'貯蓄率', raw: savingsRate},
+      fixed: {score: bScore, max: 25, label:'固定費比率', raw: fixedRatio},
+      stability: {score: cScore, max: 20, label:'安定性', raw: nets.length},
+      travel: {score: dScore, max: 15, label:'旅行貯蓄', raw: travel}
+    },
+    totals
+  };
+}
+function scoreColor(score){
+  if(score >= 75) return 'var(--jade)';
+  if(score >= 50) return 'var(--gold)';
+  return 'var(--coral)';
+}
+
+/* ---------- 月々の余力(サブスク追加シミュレーション) ---------- */
+// カテゴリの「見込み月額」を求める:定期取引があればその合計、無ければ予算目安、それも無ければ過去実績の平均
+// 頻度が「指定した月のみ」(賞与など)の場合は、年間発生額を12ヶ月で按分した平均額として扱う
+function categoryRecurringMonthlyTotal(categoryId){
+  return state.recurring
+    .filter(r=>r.active !== false && r.categoryId === categoryId)
+    .reduce((s,r)=>{
+      if(r.frequency === 'yearly'){
+        const occurrences = (r.months||[]).length;
+        return s + (r.amount * occurrences / 12);
+      }
+      return s + r.amount;
+    }, 0);
+}
+function categoryHistoricalAverage(categoryId, monthsBack){
+  monthsBack = monthsBack || 3;
+  const months = getPastMonths(todayStr().slice(0,7), monthsBack);
+  const sums = months
+    .filter(ym => txForMonth(ym).some(t=>t.categoryId===categoryId))
+    .map(ym => txForMonth(ym).filter(t=>t.categoryId===categoryId).reduce((s,t)=>s+t.amount,0));
+  if(!sums.length) return 0;
+  return sums.reduce((s,v)=>s+v,0) / sums.length;
+}
+function categoryPlannedMonthly(cat){
+  const recurringTotal = categoryRecurringMonthlyTotal(cat.id);
+  if(recurringTotal > 0) return { amount: recurringTotal, source: '定期取引' };
+  if(cat.monthlyBudget) return { amount: cat.monthlyBudget, source: '予算目安' };
+  const avg = categoryHistoricalAverage(cat.id, 3);
+  if(avg > 0) return { amount: avg, source: '過去3ヶ月平均' };
+  return { amount: 0, source: 'データなし' };
+}
+function computeMonthlyHeadroom(){
+  let plannedIncome = 0, plannedExpense = 0;
+  const breakdown = [];
+  state.categories.forEach(cat=>{
+    const planned = categoryPlannedMonthly(cat);
+    if(planned.amount <= 0) return;
+    if(cat.type === 'income') plannedIncome += planned.amount;
+    else plannedExpense += planned.amount;
+    breakdown.push({ cat, ...planned });
+  });
+  return { plannedIncome, plannedExpense, headroom: plannedIncome - plannedExpense, breakdown };
+}
+
+/* ---------- rendering: shell ---------- */
+function renderApp(){
+  const el = document.getElementById('app');
+  el.innerHTML = `
+    ${renderHeader()}
+    ${renderTabs()}
+    <div id="tabContent"></div>
+  `;
+  renderTabContent();
+  attachHeaderEvents();
+}
+
+function renderHeader(){
+  return `
+  <div class="header">
+    <div>
+      <p class="eyebrow">Money Flow Ledger</p>
+      <h1 class="title">流動帳</h1>
+      <div id="syncIndicator" style="margin-top:2px;"></div>
+    </div>
+    <div class="month-picker">
+      <button id="monthPrev" aria-label="前の月">‹</button>
+      <span class="mval mono">${monthLabel(currentMonth)}</span>
+      <button id="monthNext" aria-label="次の月">›</button>
+    </div>
+  </div>`;
+}
+function attachHeaderEvents(){
+  renderSyncIndicator();
+  document.getElementById('monthPrev').onclick = ()=>{
+    currentMonth = shiftMonth(currentMonth, -1);
+    txFilter.month = currentMonth;
+    renderApp();
+  };
+  document.getElementById('monthNext').onclick = ()=>{
+    currentMonth = shiftMonth(currentMonth, 1);
+    txFilter.month = currentMonth;
+    renderApp();
+  };
+}
+
+function renderTabs(){
+  const tabs = [
+    {id:'dashboard', label:'ダッシュボード'},
+    {id:'transactions', label:'取引明細'},
+    {id:'recurring', label:'定期取引'},
+    {id:'accounts', label:'口座'},
+    {id:'cards', label:'カード'},
+    {id:'categories', label:'カテゴリ設定'},
+    {id:'travel', label:'旅行貯蓄'},
+    {id:'data', label:'データ管理'},
+  ];
+  return `<div class="tabs">
+    ${tabs.map(t=>`<button class="tab-btn ${currentTab===t.id?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('')}
+  </div>`;
+}
+
+function renderTabContent(){
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.onclick = ()=>{ currentTab = btn.dataset.tab; renderApp(); };
+  });
+  const container = document.getElementById('tabContent');
+  if(currentTab === 'dashboard') container.innerHTML = renderDashboard();
+  else if(currentTab === 'transactions') container.innerHTML = renderTransactions();
+  else if(currentTab === 'recurring') container.innerHTML = renderRecurring();
+  else if(currentTab === 'accounts') container.innerHTML = renderAccounts();
+  else if(currentTab === 'cards') container.innerHTML = renderCards();
+  else if(currentTab === 'categories') container.innerHTML = renderCategories();
+  else if(currentTab === 'travel') container.innerHTML = renderTravel();
+  else if(currentTab === 'data') container.innerHTML = renderDataManagement();
+
+  if(currentTab === 'dashboard') afterRenderDashboard();
+  if(currentTab === 'transactions') afterRenderTransactions();
+  if(currentTab === 'recurring') afterRenderRecurring();
+  if(currentTab === 'accounts') afterRenderAccounts();
+  if(currentTab === 'cards') afterRenderCards();
+  if(currentTab === 'categories') afterRenderCategories();
+  if(currentTab === 'travel') afterRenderTravel();
+  if(currentTab === 'data') afterRenderDataManagement();
+}
+
+/* ================= Dashboard ================= */
+function renderDashboard(){
+  const hasDataThisMonth = txForMonth(currentMonth).length > 0;
+  const result = computeScore(currentMonth);
+  const { total, components, totals } = result;
+  const color = scoreColor(total);
+  const circumference = 2 * Math.PI * 54;
+  const dash = circumference * (total/100);
+
+  const accountAlerts = state.accounts
+    .map(acc=>computeAccountAlert(acc.id))
+    .filter(a=> a && (a.isNegativeNow || a.isProjectedNegative));
+  const alertBanner = accountAlerts.length ? `
+    <div class="panel" style="background:rgba(199,92,92,.1);border-color:var(--danger);">
+      <h3 style="color:var(--coral);">⚠ 残高アラート</h3>
+      ${accountAlerts.map(a=>`
+        <div class="help-text" style="color:var(--text);margin-bottom:6px;">
+          <strong>${a.accountName}</strong>:${a.isNegativeNow ? '現在の残高がマイナスです' : `${monthLabel(a.projectedNegativeMonth)}頃に残高不足の見込み(${yen(a.projectedNegativeBalance)})`}
+        </div>`).join('')}
+      <p class="help-text">詳細は「口座」タブで確認できます。</p>
+    </div>` : '';
+
+  const flaggedTx = state.transactions.filter(t=>t.flagged).sort((a,b)=> a.date.localeCompare(b.date));
+  const flagBanner = flaggedTx.length ? `
+    <div class="panel" style="background:rgba(212,169,78,.1);border-color:var(--gold-dim);">
+      <h3 style="color:var(--gold);">🚩 フラグ付きの取引(${flaggedTx.length}件)</h3>
+      ${flaggedTx.slice(0,5).map(t=>{
+        const cat = catById(t.categoryId);
+        return `<div class="help-text" style="color:var(--text);margin-bottom:4px;">${t.date} ${cat?cat.name:''} ${yen(t.amount)}${t.memo?' ・ '+t.memo:''}</div>`;
+      }).join('')}
+      ${flaggedTx.length > 5 ? `<p class="help-text">他${flaggedTx.length-5}件</p>` : ''}
+      <p class="help-text">「取引明細」タブの「フラグ付きのみ表示」で確認・編集できます。</p>
+    </div>` : '';
+
+  const compRows = [
+    {key:'savings', color:'var(--jade)'},
+    {key:'fixed', color:'var(--coral)'},
+    {key:'stability', color:'var(--steel)'},
+    {key:'travel', color:'var(--gold)'},
+  ].map(({key,color})=>{
+    const c = components[key];
+    const isTravel = key === 'travel';
+    const scoreVal = c.score === null ? 0 : c.score;
+    const label = isTravel && c.score === null ? c.label + '(未設定)' : c.label;
+    const width = c.max ? clamp(scoreVal / c.max, 0, 1) * 100 : 0;
+    return `
+    <div class="sb-row">
+      <div class="sb-label">${label}</div>
+      <div class="sb-bar"><div class="sb-fill" style="width:${width}%;background:${color};"></div></div>
+      <div class="sb-val mono">${c.score === null ? '—' : Math.round(scoreVal)}/${c.max}</div>
+    </div>`;
+  }).join('');
+
+  const netClass = totals.net >= 0 ? 'pos' : 'neg';
+
+  const catTypes = ['income','fixed','variable','savings'];
+  const catTotals = catTypes.map(type=>{
+    const sum = state.categories.filter(c=>c.type===type)
+      .reduce((s,c)=> s + txForMonth(currentMonth).filter(t=>t.categoryId===c.id).reduce((a,t)=>a+t.amount,0), 0);
+    return {type, sum};
+  });
+  const maxCat = Math.max(1, ...catTotals.map(c=>c.sum));
+  const catBarsHtml = catTotals.map(c=>`
+    <div class="cat-bar-row">
+      <div class="cat-bar-label">${TYPE_LABEL[c.type]}</div>
+      <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(c.sum/maxCat*100)||0}%;background:${TYPE_COLOR[c.type]};"></div></div>
+      <div class="cat-bar-amt mono">${yen(c.sum)}</div>
+    </div>`).join('');
+
+  const scorePanel = hasDataThisMonth ? `
+    <div class="panel">
+      <h3>今月のスコア</h3>
+      <div class="score-row">
+        <div class="score-ring-wrap">
+          <svg width="132" height="132" viewBox="0 0 132 132">
+            <circle cx="66" cy="66" r="54" fill="none" stroke="var(--panel2)" stroke-width="10"/>
+            <circle cx="66" cy="66" r="54" fill="none" stroke="${color}" stroke-width="10"
+              stroke-linecap="round" stroke-dasharray="${dash} ${circumference}"
+              transform="rotate(-90 66 66)"/>
+          </svg>
+          <div class="score-num">
+            <div class="n" style="color:${color};">${total}</div>
+            <div class="lbl">/ 100</div>
+          </div>
+        </div>
+        <div class="score-breakdown">${compRows}</div>
+      </div>
+      <div class="section-gap"><button class="btn secondary small" id="btnScoreDetail">スコアを細かく見る</button></div>
+    </div>
+    <div class="panel">
+      <h3>スコア推移(過去12ヶ月)</h3>
+      <canvas id="scoreHistoryCanvas" style="width:100%;height:120px;display:block;"></canvas>
+    </div>` : `
+    <div class="panel">
+      <h3>今月のスコア</h3>
+      <div class="empty-state">${monthLabel(currentMonth)}の取引がまだありません。「取引明細」タブから記録するとスコアが表示されます。</div>
+    </div>`;
+
+  return `
+    ${alertBanner}
+    ${flagBanner}
+    ${scorePanel}
+
+    <div class="panel">
+      <h3>資金の脈拍 <span style="text-transform:none;font-weight:400;color:var(--dim2);">— 直近12ヶ月の収支リズム</span></h3>
+      <div class="pulse-wrap">
+        <canvas id="pulseCanvas"></canvas>
+      </div>
+      <div class="pulse-legend">
+        <span><span class="dot" style="background:var(--jade);"></span>黒字月</span>
+        <span><span class="dot" style="background:var(--coral);"></span>赤字月</span>
+      </div>
+    </div>
+
+    <div class="grid3">
+      <div class="kpi-card"><div class="kpi-label">収入</div><div class="kpi-val mono neutral">${yen(totals.income)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">固定費</div><div class="kpi-val mono neutral">${yen(totals.fixed)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">変動費</div><div class="kpi-val mono neutral">${yen(totals.variable)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">収支</div><div class="kpi-val mono ${netClass}">${totals.net>=0?'+':''}${yen(totals.net)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">貯蓄率</div><div class="kpi-val mono neutral">${totals.income>0? pct(totals.net/totals.income):'—'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">固定費比率</div><div class="kpi-val mono neutral">${totals.income>0? pct(totals.fixed/totals.income):'—'}</div></div>
+    </div>
+
+    <div class="panel">
+      <h3>カテゴリ内訳(タイプ別合計)</h3>
+      ${catBarsHtml}
+    </div>
+
+    ${state.accounts.length ? `
+    <div class="panel">
+      <h3>口座残高(${monthLabel(currentMonth)}末時点・概算)</h3>
+      <div class="grid3">
+        ${state.accounts.map(acc=>{
+          const bal = computeAccountBalance(acc.id, lastDayOfMonth(currentMonth));
+          return `<div class="kpi-card">
+            <div class="kpi-label">${acc.name}</div>
+            <div class="kpi-val mono ${bal>=0?'neutral':'neg'}">${yen(bal)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+
+    ${renderHeadroomPanel()}
+  `;
+}
+
+function renderHeadroomPanel(){
+  const h = computeMonthlyHeadroom();
+  const headroomClass = h.headroom >= 0 ? 'pos' : 'neg';
+  return `
+    <div class="panel">
+      <h3>月々の余力(サブスク追加シミュレーション)</h3>
+      <p class="help-text">定期取引・カテゴリの予算目安・過去3ヶ月の実績平均から、毎月おおよそいくら余裕があるかを見積もります。光熱費のようにCSVで後から取り込む費目は、カテゴリ設定で「予算目安」を入れておくと精度が上がります。</p>
+      <div class="grid3">
+        <div class="kpi-card"><div class="kpi-label">見込み月収</div><div class="kpi-val mono neutral">${yen(h.plannedIncome)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">見込み月間支出</div><div class="kpi-val mono neutral">${yen(h.plannedExpense)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">月々の余力</div><div class="kpi-val mono ${headroomClass}" id="headroomBaseVal">${yen(h.headroom)}</div></div>
+      </div>
+      <div class="section-gap">
+        <label>追加したいサブスクの月額(例:Claude Pro ¥3,000)</label>
+        <input type="number" id="headroomInput" min="0" placeholder="例: 3000" data-headroom="${h.headroom}">
+        <div id="headroomResult" class="help-text section-gap"></div>
+      </div>
+    </div>`;
+}
+
+function afterRenderDashboard(){
+  drawPulseChart();
+  drawScoreHistoryChart();
+  const scoreDetailBtn = document.getElementById('btnScoreDetail');
+  if(scoreDetailBtn) scoreDetailBtn.onclick = ()=> openScoreDetailModal(currentMonth);
+  const headroomInput = document.getElementById('headroomInput');
+  const headroomResult = document.getElementById('headroomResult');
+  if(headroomInput && headroomResult){
+    headroomInput.oninput = ()=>{
+      const headroom = parseFloat(headroomInput.dataset.headroom) || 0;
+      const amount = parseFloat(headroomInput.value);
+      if(isNaN(amount) || amount <= 0){ headroomResult.textContent = ''; return; }
+      const remaining = headroom - amount;
+      if(remaining >= 0){
+        headroomResult.innerHTML = `<span style="color:var(--jade);">追加できそうです。追加後の見込み余力: ${yen(remaining)}</span>`;
+      } else {
+        headroomResult.innerHTML = `<span style="color:var(--coral);">見込みで ${yen(Math.abs(remaining))} 不足します。他の費目を見直すか、実績を見て判断してください。</span>`;
+      }
+    };
+  }
+}
+
+function drawScoreHistoryChart(){
+  const canvas = document.getElementById('scoreHistoryCanvas');
+  if(!canvas) return;
+  const months = getPastMonths(currentMonth, 12);
+  const scores = months.map(m => txForMonth(m).length > 0 ? computeScore(m).total : null);
+
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || canvas.parentElement.clientWidth;
+  const cssH = 120;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const padX = 10, padY = 14;
+  const w = cssW - padX*2;
+  const h = cssH - padY*2;
+  const stepX = months.length > 1 ? w / (months.length - 1) : 0;
+
+  // 50点ライン(目安)
+  const y50 = padY + h - (50/100)*h;
+  ctx.strokeStyle = 'rgba(139,144,153,.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padX, y50);
+  ctx.lineTo(padX + w, y50);
+  ctx.stroke();
+
+  const points = scores.map((s,i)=>({
+    x: padX + stepX * i,
+    y: s === null ? null : padY + h - (s/100)*h,
+    v: s
+  }));
+
+  ctx.beginPath();
+  let started = false;
+  points.forEach(p=>{
+    if(p.y === null){ started = false; return; }
+    if(!started){ ctx.moveTo(p.x,p.y); started = true; } else { ctx.lineTo(p.x,p.y); }
+  });
+  ctx.strokeStyle = 'rgba(232,230,225,.55)';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  points.forEach(p=>{
+    if(p.v === null) return;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx.fillStyle = scoreColor(p.v);
+    ctx.fill();
+  });
+
+  ctx.fillStyle = 'rgba(139,144,153,.8)';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  months.forEach((m, idx)=>{
+    if(idx % 2 === 0){
+      const [,mm] = m.split('-');
+      ctx.fillText(Number(mm) + '月', points[idx].x, cssH - 2);
+    }
+  });
+}
+
+function openScoreDetailModal(ym){
+  const r = computeScore(ym);
+  const { total, components, totals } = r;
+  const travel = components.travel.raw;
+  openModal(`
+    <h3>${monthLabel(ym)}のスコア詳細</h3>
+    <div class="score-num" style="position:static;display:block;text-align:center;margin-bottom:12px;">
+      <div class="n" style="color:${scoreColor(total)};font-size:36px;">${total}<span style="font-size:16px;color:var(--dim2);"> / 100</span></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:10px;">
+      <h3>① 貯蓄率(最大40点)</h3>
+      <p class="help-text">計算式:(収入 − 固定費 − 変動費)÷ 収入</p>
+      <p class="help-text">今月の値: <span class="mono">${totals.income>0?pct(components.savings.raw):'—'}</span>(30%以上で満点)</p>
+      <p class="help-text">獲得点数: <span class="mono">${Math.round(components.savings.score)} / 40</span></p>
+    </div>
+
+    <div class="panel" style="margin-bottom:10px;">
+      <h3>② 固定費比率(最大25点)</h3>
+      <p class="help-text">計算式:固定費 ÷ 収入</p>
+      <p class="help-text">今月の値: <span class="mono">${totals.income>0?pct(components.fixed.raw):'—'}</span>(30%以下で満点、80%以上で0点)</p>
+      <p class="help-text">獲得点数: <span class="mono">${Math.round(components.fixed.score)} / 25</span></p>
+    </div>
+
+    <div class="panel" style="margin-bottom:10px;">
+      <h3>③ 安定性(最大20点)</h3>
+      <p class="help-text">直近6ヶ月のうち取引がある月の収支のブレ(変動係数)から算出。ブレが小さいほど高得点。</p>
+      <p class="help-text">対象月数: <span class="mono">${components.stability.raw}ヶ月分のデータ</span>${components.stability.raw < 2 ? '(データ不足のため中立点)' : ''}</p>
+      <p class="help-text">獲得点数: <span class="mono">${Math.round(components.stability.score)} / 20</span></p>
+    </div>
+
+    <div class="panel" style="margin-bottom:0;">
+      <h3>④ 旅行貯蓄の進捗(最大15点)</h3>
+      ${travel ? `
+      <p class="help-text">必要ペース: <span class="mono">${yen(travel.requiredPace)}/月</span> に対して 実際のペース: <span class="mono">${yen(travel.actualPace)}/月</span></p>
+      <p class="help-text">達成率: <span class="mono">${pct(clamp(travel.onTrackRatio,0,1.5))}</span>(100%以上で満点)</p>
+      <p class="help-text">獲得点数: <span class="mono">${Math.round(components.travel.score)} / 15</span></p>
+      ` : `<p class="help-text">目標が未設定のため、この項目は採点から除外され、残り85点満点を100点に換算しています。「旅行貯蓄」タブで目標を設定すると加わります。</p>`}
+    </div>
+
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCloseScoreDetail">閉じる</button>
+    </div>
+  `);
+  document.getElementById('btnCloseScoreDetail').onclick = closeModal;
+}
+
+function drawPulseChart(){
+  const canvas = document.getElementById('pulseCanvas');
+  if(!canvas) return;
+  const months = getPastMonths(currentMonth, 12);
+  const nets = months.map(m => getMonthlyTotals(m).net);
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || canvas.parentElement.clientWidth;
+  const cssH = 140;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const padX = 10, padY = 16;
+  const w = cssW - padX*2;
+  const h = cssH - padY*2;
+  const maxAbs = Math.max(1, ...nets.map(n=>Math.abs(n)));
+  const zeroY = padY + h/2;
+
+  // baseline
+  ctx.strokeStyle = 'rgba(139,144,153,.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padX, zeroY);
+  ctx.lineTo(padX + w, zeroY);
+  ctx.stroke();
+
+  const stepX = nets.length > 1 ? w / (nets.length - 1) : 0;
+  const points = nets.map((n,i)=>({
+    x: padX + stepX * i,
+    y: zeroY - (n / maxAbs) * (h/2 - 6),
+    v: n
+  }));
+
+  // line
+  ctx.beginPath();
+  points.forEach((p,i)=>{ i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y); });
+  ctx.strokeStyle = 'rgba(232,230,225,.55)';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  // points
+  points.forEach((p, idx)=>{
+    const hasData = txForMonth(months[idx]).length > 0;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, hasData ? 3.4 : 2, 0, Math.PI*2);
+    ctx.fillStyle = !hasData ? 'rgba(139,144,153,.4)' : (p.v >= 0 ? '#4fb286' : '#c97b4a');
+    ctx.fill();
+  });
+
+  // month labels (every 2nd month to avoid crowding)
+  ctx.fillStyle = 'rgba(139,144,153,.8)';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  points.forEach((p, idx)=>{
+    if(idx % 2 === 0){
+      const [,m] = months[idx].split('-');
+      ctx.fillText(Number(m) + '月', p.x, cssH - 2);
+    }
+  });
+}
+window.addEventListener('resize', ()=>{
+  if(currentTab==='dashboard'){ drawPulseChart(); drawScoreHistoryChart(); }
+  if(currentTab==='accounts') state.accounts.forEach(acc=> drawBalanceForecastChart(acc.id));
+});
+
+/* ================= Transactions ================= */
+function renderTransactions(){
+  const months = availableMonths();
+  if(txFilter.month !== 'all' && !months.includes(txFilter.month)) txFilter.month = currentMonth;
+  const baseTxs = txFilter.month === 'all' ? state.transactions.slice() : txForMonth(txFilter.month);
+  const searchTerm = (txFilter.search||'').trim().toLowerCase();
+  const txs = baseTxs
+    .filter(t => txFilter.type === 'all' || catById(t.categoryId)?.type === txFilter.type)
+    .filter(t => !txFilter.flaggedOnly || t.flagged)
+    .filter(t => {
+      if(!searchTerm) return true;
+      const cat = catById(t.categoryId);
+      const haystack = [t.memo, cat?.name, t.payment, paymentSourceLabel(t)].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(searchTerm);
+    })
+    .sort((a,b)=> b.date.localeCompare(a.date));
+
+  const rows = txs.map(t=>{
+    const cat = catById(t.categoryId);
+    const srcLabel = paymentSourceLabel(t);
+    return `
+    <tr>
+      <td><input type="checkbox" class="tx-select" data-txid="${t.id}" ${selectedTxIds.has(t.id)?'checked':''}></td>
+      <td><button class="icon-btn" data-toggle-flag="${t.id}" title="フラグを${t.flagged?'外す':'立てる'}" style="opacity:${t.flagged?'1':'.3'};">🚩</button></td>
+      <td class="mono">${t.date}</td>
+      <td>${cat ? `<span class="type-tag type-${cat.type}">${cat.name}</span>` : '(削除済み)'}</td>
+      <td class="mono">${yen(t.amount)}</td>
+      <td>${t.payment||''}</td>
+      <td style="font-size:12px;color:var(--dim);">${srcLabel||'—'}</td>
+      <td style="color:var(--dim2);font-size:12px;">${t.memo||''}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit="${t.id}" title="編集">✎</button>
+          <button class="icon-btn" data-del="${t.id}" title="削除">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const flaggedCount = baseTxs.filter(t=>t.flagged).length;
+  const pending = txFilter.month === 'all' ? 0 : pendingRecurringCount(txFilter.month);
+  const visibleIds = txs.map(t=>t.id);
+  const selCount = visibleIds.filter(id=>selectedTxIds.has(id)).length;
+  const hasSourceOptions = state.accounts.length || state.cards.length;
+  const unlinkedCount = txs.filter(t=>!t.accountId && !t.cardId).length;
+  const uniquePayments = Array.from(new Set(txs.map(t=>t.payment).filter(Boolean)));
+
+  return `
+    ${pending > 0 ? `
+    <div class="panel" style="border-color:var(--gold-dim);">
+      <div class="filter-row" style="margin-bottom:0;">
+        <span style="font-size:13px;color:var(--gold);">${monthLabel(txFilter.month)}の定期取引が${pending}件未反映です(給与・ローン引落など)</span>
+        <button class="btn small" id="btnQuickApplyRecurring">今すぐ反映</button>
+      </div>
+    </div>` : ''}
+    <div class="panel">
+      <div class="filter-row">
+        <div class="field">
+          <label>対象月</label>
+          <select id="txMonthFilter">
+            <option value="all" ${txFilter.month==='all'?'selected':''}>すべての月</option>
+            ${months.map(m=>`<option value="${m}" ${m===txFilter.month?'selected':''}>${monthLabel(m)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>タイプ</label>
+          <select id="txTypeFilter">
+            <option value="all" ${txFilter.type==='all'?'selected':''}>すべて</option>
+            <option value="income" ${txFilter.type==='income'?'selected':''}>収入</option>
+            <option value="fixed" ${txFilter.type==='fixed'?'selected':''}>固定費</option>
+            <option value="variable" ${txFilter.type==='variable'?'selected':''}>変動費</option>
+            <option value="savings" ${txFilter.type==='savings'?'selected':''}>貯蓄</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>名称検索</label>
+          <input type="text" id="txSearchFilter" value="${txFilter.search||''}" placeholder="例: 旅行積立, イオン" style="min-width:140px;">
+        </div>
+        <button class="btn" id="btnAddTx">+ 取引を追加</button>
+        <button class="btn secondary" id="btnCsvImport">CSVインポート(PayPayカード等)</button>
+      </div>
+      ${flaggedCount > 0 ? `
+      <div class="filter-row" style="margin-top:2px;">
+        <button class="btn ${txFilter.flaggedOnly?'':'secondary'} small" id="btnToggleFlaggedOnly">🚩 フラグ付きのみ表示(${flaggedCount}件)${txFilter.flaggedOnly ? ' ✓' : ''}</button>
+      </div>` : ''}
+      ${txs.length ? `
+      <div class="filter-row" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;flex-wrap:wrap;">
+        ${hasSourceOptions && unlinkedCount > 0 ? `<span style="font-size:12px;color:var(--gold);">支払元が未設定の取引が${unlinkedCount}件あります</span>
+        <button class="btn secondary small" id="btnSelectUnlinked">未設定の取引をすべて選択</button>` : ''}
+        ${uniquePayments.length ? `
+        <select id="selectByPaymentValue" style="max-width:160px;">
+          ${uniquePayments.map(p=>`<option value="${p}">${p}</option>`).join('')}
+        </select>
+        <button class="btn secondary small" id="btnSelectByPayment">この支払方法を選択</button>` : ''}
+        ${selCount > 0 ? `
+          <span style="font-size:12px;color:var(--dim);">${selCount}件選択中</span>
+          ${hasSourceOptions ? `<select id="bulkPaymentSource" style="max-width:200px;">${paymentSourceOptionsHtml('', '')}</select>
+          <button class="btn small" id="btnApplyBulkSource">選択した取引に支払元を設定</button>` : ''}
+          <button class="btn danger small" id="btnDeleteSelected">選択したすべてを削除</button>
+          <button class="btn secondary small" id="btnClearSelection">選択解除</button>
+        ` : ''}
+      </div>` : ''}
+      ${!hasSourceOptions && txs.length ? `<p class="help-text">「口座」「カード」タブで登録すると、CSVで取り込んだ過去の取引にも後からまとめて紐付けできます。</p>` : ''}
+      ${txs.length ? `
+      <table>
+        <thead><tr><th><input type="checkbox" id="txSelectAll" ${selCount>0 && selCount===visibleIds.length?'checked':''}></th><th>🚩</th><th>日付</th><th>カテゴリ</th><th>金額</th><th>支払方法</th><th>支払元</th><th>メモ</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : `<div class="empty-state">この月の取引はまだありません。「+ 取引を追加」またはCSVインポートで記録を始めましょう。</div>`}
+    </div>
+  `;
+}
+
+function categoryOptionsGrouped(selectedId){
+  const groups = ['income','fixed','variable','savings'];
+  return groups.map(g=>{
+    const opts = state.categories.filter(c=>c.type===g)
+      .map(c=>`<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.name}</option>`).join('');
+    return `<optgroup label="${TYPE_LABEL[g]}">${opts}</optgroup>`;
+  }).join('');
+}
+
+function afterRenderTransactions(){
+  const mf = document.getElementById('txMonthFilter');
+  if(mf) mf.onchange = (e)=>{ txFilter.month = e.target.value; selectedTxIds.clear(); renderTabContent(); };
+  const tf = document.getElementById('txTypeFilter');
+  if(tf) tf.onchange = (e)=>{ txFilter.type = e.target.value; selectedTxIds.clear(); renderTabContent(); };
+  const sf = document.getElementById('txSearchFilter');
+  if(sf){
+    let isComposing = false;
+    const applySearch = (value)=>{
+      txFilter.search = value;
+      selectedTxIds.clear();
+      renderTabContent();
+      const el = document.getElementById('txSearchFilter');
+      if(el){ el.focus(); const len = el.value.length; el.setSelectionRange(len, len); }
+    };
+    sf.addEventListener('compositionstart', ()=>{ isComposing = true; });
+    sf.addEventListener('compositionend', (e)=>{ isComposing = false; applySearch(e.target.value); });
+    sf.addEventListener('input', (e)=>{
+      if(isComposing) return; // 漢字変換中は再描画しない(IMEの変換が中断されるため)
+      applySearch(e.target.value);
+    });
+  }
+  const addBtn = document.getElementById('btnAddTx');
+  if(addBtn) addBtn.onclick = ()=> openTxForm();
+  const csvBtn = document.getElementById('btnCsvImport');
+  if(csvBtn) csvBtn.onclick = ()=> openCsvImportModal();
+  const flaggedToggle = document.getElementById('btnToggleFlaggedOnly');
+  if(flaggedToggle) flaggedToggle.onclick = ()=>{ txFilter.flaggedOnly = !txFilter.flaggedOnly; renderTabContent(); };
+  document.querySelectorAll('[data-toggle-flag]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const t = state.transactions.find(tx=>tx.id===btn.dataset.toggleFlag);
+      if(t){ t.flagged = !t.flagged; saveState(); renderTabContent(); }
+    };
+  });
+  const quickApply = document.getElementById('btnQuickApplyRecurring');
+  if(quickApply) quickApply.onclick = ()=>{
+    const { count, linked } = applyRecurringForMonth(txFilter.month);
+    renderTabContent();
+    toast(`${count}件反映しました${linked? `(${linked}件は取込済みのため紐付けのみ)`:''}`);
+  };
+
+  document.querySelectorAll('.tx-select').forEach(cb=>{
+    cb.onchange = ()=>{
+      if(cb.checked) selectedTxIds.add(cb.dataset.txid);
+      else selectedTxIds.delete(cb.dataset.txid);
+      renderTabContent();
+    };
+  });
+  const selectAll = document.getElementById('txSelectAll');
+  if(selectAll) selectAll.onchange = ()=>{
+    document.querySelectorAll('.tx-select').forEach(cb=>{
+      if(selectAll.checked) selectedTxIds.add(cb.dataset.txid);
+      else selectedTxIds.delete(cb.dataset.txid);
+    });
+    renderTabContent();
+  };
+  const selectUnlinked = document.getElementById('btnSelectUnlinked');
+  if(selectUnlinked) selectUnlinked.onclick = ()=>{
+    document.querySelectorAll('.tx-select').forEach(cb=>{
+      const t = state.transactions.find(tx=>tx.id===cb.dataset.txid);
+      if(t && !t.accountId && !t.cardId) selectedTxIds.add(t.id);
+    });
+    renderTabContent();
+  };
+  const selectByPayment = document.getElementById('btnSelectByPayment');
+  if(selectByPayment) selectByPayment.onclick = ()=>{
+    const val = document.getElementById('selectByPaymentValue').value;
+    document.querySelectorAll('.tx-select').forEach(cb=>{
+      const t = state.transactions.find(tx=>tx.id===cb.dataset.txid);
+      if(t && t.payment === val) selectedTxIds.add(t.id);
+    });
+    renderTabContent();
+  };
+  const clearSel = document.getElementById('btnClearSelection');
+  if(clearSel) clearSel.onclick = ()=>{ selectedTxIds.clear(); renderTabContent(); };
+  const deleteSelected = document.getElementById('btnDeleteSelected');
+  if(deleteSelected) deleteSelected.onclick = ()=>{
+    const n = selectedTxIds.size;
+    if(!confirm(`選択した${n}件の取引を削除します。よろしいですか?(この操作は元に戻せません)`)) return;
+    state.transactions = state.transactions.filter(t=>!selectedTxIds.has(t.id));
+    selectedTxIds.clear();
+    saveState();
+    renderTabContent();
+    toast(`${n}件削除しました`);
+  };
+  const applyBulk = document.getElementById('btnApplyBulkSource');
+  if(applyBulk) applyBulk.onclick = ()=>{
+    const { accountId, cardId } = parsePaymentSource(document.getElementById('bulkPaymentSource').value);
+    if(!accountId && !cardId){ toast('支払元(口座またはカード)を選択してください'); return; }
+    let updated = 0;
+    selectedTxIds.forEach(id=>{
+      const t = state.transactions.find(tx=>tx.id===id);
+      if(t){ t.accountId = accountId; t.cardId = cardId; updated++; }
+    });
+    saveState();
+    selectedTxIds.clear();
+    renderTabContent();
+    toast(`${updated}件の取引の支払元を更新しました`);
+  };
+
+  document.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.onclick = ()=> openTxForm(state.transactions.find(t=>t.id===btn.dataset.edit));
+  });
+  document.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(confirm('この取引を削除しますか?')){
+        state.transactions = state.transactions.filter(t=>t.id!==btn.dataset.del);
+        selectedTxIds.delete(btn.dataset.del);
+        saveState(); renderTabContent(); toast('削除しました');
+      }
+    };
+  });
+}
+
+function openTxForm(existing){
+  const isEdit = !!existing;
+  const t = existing || { date: (txFilter.month === 'all' ? currentMonth : txFilter.month) + '-01', categoryId: state.categories[0]?.id, amount:'', payment: '', memo:'', accountId: '', cardId: '', transferToAccountId: '', flagged: false };
+  const initType = catById(t.categoryId)?.type || 'variable';
+  openModal(`
+    <h3>${isEdit?'取引を編集':'取引を追加'}</h3>
+    <div class="form-row">
+      <div class="field"><label>日付</label><input type="date" id="fDate" value="${t.date}"></div>
+      <div class="field"><label>金額</label><input type="number" id="fAmount" value="${t.amount}" min="0" placeholder="例: 12000"></div>
+    </div>
+    <div class="field">
+      <label>カテゴリ</label>
+      <select id="fCategory">${categoryOptionsGrouped(t.categoryId)}</select>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label id="fPaymentLabel">${paymentLabelFor(initType)}</label>
+        <select id="fPayment"></select>
+      </div>
+      <div class="field">
+        <label>支払元・口座(任意)</label>
+        <select id="fPaymentSource">${paymentSourceOptionsHtml(t.accountId, t.cardId)}</select>
+      </div>
+    </div>
+    <div class="field" id="fTransferWrap" style="display:none;">
+      <label>振替先口座(任意・積立など)</label>
+      <select id="fTransferTo">${accountOptionsHtml(t.transferToAccountId)}</select>
+      <div class="help-text">上の「支払元・口座」から出て、この口座に入金される振替として記録します(例:東春信金 → 積立)。</div>
+    </div>
+    <div class="field"><label>メモ(任意)</label><input type="text" id="fMemo" value="${t.memo||''}" placeholder="例: イオン食料品"></div>
+    <label style="display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text);margin-bottom:14px;">
+      <input type="checkbox" id="fFlagged" ${t.flagged?'checked':''}> 🚩 フラグを立てる(金額未確定・要確認など、忘れないようにする)
+    </label>
+    ${(!state.accounts.length && !state.cards.length) ? `<p class="help-text">「口座」「カード」タブで登録すると、この取引がどの口座・カードのものか紐づけて残高を追跡できます。</p>` : ''}
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelTx">キャンセル</button>
+      <button class="btn" id="btnSaveTx">保存</button>
+    </div>
+  `);
+  function refreshPaymentOptions(selectedPayment){
+    const type = catById(document.getElementById('fCategory').value)?.type || 'variable';
+    const methods = paymentMethodsFor(type);
+    document.getElementById('fPaymentLabel').textContent = paymentLabelFor(type);
+    document.getElementById('fPayment').innerHTML = methods
+      .map(p=>`<option value="${p}" ${p===selectedPayment?'selected':''}>${p}</option>`).join('');
+    document.getElementById('fTransferWrap').style.display = (type === 'savings' && state.accounts.length) ? 'block' : 'none';
+  }
+  refreshPaymentOptions(t.payment);
+  document.getElementById('fCategory').onchange = ()=> refreshPaymentOptions(null);
+  document.getElementById('btnCancelTx').onclick = closeModal;
+  document.getElementById('btnSaveTx').onclick = ()=>{
+    const date = document.getElementById('fDate').value;
+    const amount = parseFloat(document.getElementById('fAmount').value);
+    const categoryId = document.getElementById('fCategory').value;
+    const payment = document.getElementById('fPayment').value;
+    const memo = document.getElementById('fMemo').value;
+    const { accountId, cardId } = parsePaymentSource(document.getElementById('fPaymentSource').value);
+    const transferToAccountId = document.getElementById('fTransferTo') ? (document.getElementById('fTransferTo').value || null) : null;
+    const flagged = document.getElementById('fFlagged').checked;
+    if(!date || isNaN(amount) || amount < 0){ toast('日付と金額を確認してください'); return; }
+    if(isEdit){
+      Object.assign(existing, {date, amount, categoryId, payment, memo, accountId, cardId, transferToAccountId, flagged});
+    } else {
+      state.transactions.push({ id: uid(), date, amount, categoryId, payment, memo, accountId, cardId, transferToAccountId, flagged });
+    }
+    saveState();
+    closeModal();
+    txFilter.month = date.slice(0,7);
+    renderTabContent();
+    toast('保存しました');
+  };
+}
+
+/* ---- CSV Import ---- */
+function openCsvImportModal(){
+  openModal(`
+    <h3>CSVインポート</h3>
+    <p class="help-text">PayPayカードなどの利用明細CSVを読み込みます。文字コードは自動判定(Shift_JIS / UTF-8)します。</p>
+    <div class="field"><label>CSVファイル</label><input type="file" id="csvFile" accept=".csv,text/csv"></div>
+    <div id="csvMappingArea"></div>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelCsv">キャンセル</button>
+      <button class="btn" id="btnDoImport" style="display:none;">インポート実行</button>
+    </div>
+  `);
+  document.getElementById('btnCancelCsv').onclick = closeModal;
+  document.getElementById('csvFile').onchange = handleCsvFileSelect;
+}
+
+function decodeArrayBuffer(buf){
+  // Try UTF-8 first; if it contains replacement chars, fall back to Shift_JIS.
+  const utf8 = new TextDecoder('utf-8').decode(buf);
+  if(!utf8.includes('\uFFFD')) return utf8;
+  try{
+    return new TextDecoder('shift_jis').decode(buf);
+  }catch(e){
+    return utf8;
+  }
+}
+
+function parseCSV(text){
+  const lines = text.split(/\r\n|\n|\r/).filter(l=>l.trim().length>0);
+  return lines.map(line=>{
+    // basic CSV split respecting simple quoted fields
+    const cells = [];
+    let cur = '', inQuotes = false;
+    for(let i=0;i<line.length;i++){
+      const ch = line[i];
+      if(ch === '"'){ inQuotes = !inQuotes; }
+      else if(ch === ',' && !inQuotes){ cells.push(cur); cur=''; }
+      else cur += ch;
+    }
+    cells.push(cur);
+    return cells.map(c=>c.trim());
+  });
+}
+
+function normalizeDate(raw){
+  if(!raw) return null;
+  const s = raw.trim().replace(/\//g,'-');
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
+  return null;
+}
+function normalizeAmount(raw){
+  if(raw === undefined || raw === null) return NaN;
+  const cleaned = String(raw).replace(/[¥,\s]/g,'');
+  return Math.abs(parseFloat(cleaned));
+}
+
+let csvParsedRows = null;
+function handleCsvFileSelect(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const text = decodeArrayBuffer(ev.target.result);
+    csvParsedRows = parseCSV(text);
+    renderCsvMapping();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderCsvMapping(){
+  if(!csvParsedRows || !csvParsedRows.length) return;
+  const header = csvParsedRows[0];
+  const preview = csvParsedRows.slice(0, 6).map(r=>r.join(' | ')).join('\n');
+  const colOptions = header.map((h,i)=>`<option value="${i}">${i}: ${h||'(空)'}</option>`).join('');
+
+  document.getElementById('csvMappingArea').innerHTML = `
+    <div class="help-text">先頭行はヘッダーとして扱います。日付・金額の列を指定してください。</div>
+    <div class="csv-preview">${preview}</div>
+    <div class="form-row section-gap">
+      <div class="field"><label>日付の列</label><select id="colDate">${colOptions}</select></div>
+      <div class="field"><label>金額の列</label><select id="colAmount">${colOptions}</select></div>
+      <div class="field"><label>摘要の列(任意)</label><select id="colMemo"><option value="-1">(なし)</option>${colOptions}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>取込データのカテゴリ(一括指定・後で個別変更可)</label>
+        <select id="colCategory">${categoryOptionsGrouped('var_other')}</select>
+      </div>
+      <div class="field">
+        <label id="colPaymentLabel">${paymentLabelFor('variable')}</label>
+        <select id="colPayment"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>支払元・口座(任意・一括指定)</label>
+        <select id="colPaymentSource">${paymentSourceOptionsHtml('', '')}</select>
+      </div>
+    </div>
+  `;
+  function refreshImportPaymentOptions(){
+    const type = catById(document.getElementById('colCategory').value)?.type || 'variable';
+    document.getElementById('colPaymentLabel').textContent = paymentLabelFor(type);
+    const methods = paymentMethodsFor(type);
+    const preferred = methods.includes('PayPayカード') ? 'PayPayカード' : methods[0];
+    document.getElementById('colPayment').innerHTML = methods
+      .map(p=>`<option value="${p}" ${p===preferred?'selected':''}>${p}</option>`).join('');
+  }
+  refreshImportPaymentOptions();
+  document.getElementById('colCategory').onchange = refreshImportPaymentOptions;
+  document.getElementById('btnDoImport').style.display = 'inline-block';
+  document.getElementById('btnDoImport').onclick = executeCsvImport;
+
+  // best-effort auto-detect
+  const dateGuess = header.findIndex(h=>/日付|年月日|date|利用日/i.test(h||''));
+  const amtGuess = header.findIndex(h=>/金額|amount|価格|利用金額/i.test(h||''));
+  const memoGuess = header.findIndex(h=>/摘要|内容|店名|memo|加盟店/i.test(h||''));
+  if(dateGuess>=0) document.getElementById('colDate').value = dateGuess;
+  if(amtGuess>=0) document.getElementById('colAmount').value = amtGuess;
+  if(memoGuess>=0) document.getElementById('colMemo').value = memoGuess;
+
+  const paypayCard = state.cards.find(c=>/paypay|ペイペイ/i.test(c.name));
+  if(paypayCard) document.getElementById('colPaymentSource').value = 'card:' + paypayCard.id;
+}
+
+// 日付・金額に加えてカテゴリも一致する場合のみ「重複」とみなす。
+// (同じ日に別カテゴリでたまたま同額、というケースを誤って重複扱いしないため)
+function findDuplicateTransaction(date, amount, categoryId){
+  return state.transactions.find(t =>
+    t.date === date &&
+    Math.abs(t.amount - amount) < 1 &&
+    (categoryId ? t.categoryId === categoryId : true)
+  );
+}
+
+function executeCsvImport(){
+  const dateIdx = parseInt(document.getElementById('colDate').value);
+  const amtIdx = parseInt(document.getElementById('colAmount').value);
+  const memoIdx = parseInt(document.getElementById('colMemo').value);
+  const categoryId = document.getElementById('colCategory').value;
+  const payment = document.getElementById('colPayment').value;
+  const { accountId, cardId } = parsePaymentSource(document.getElementById('colPaymentSource').value);
+
+  let imported = 0, skipped = 0;
+  const duplicates = [];
+  csvParsedRows.slice(1).forEach(row=>{
+    const date = normalizeDate(row[dateIdx]);
+    const amount = normalizeAmount(row[amtIdx]);
+    if(!date || isNaN(amount) || amount <= 0){ skipped++; return; }
+    const memo = memoIdx >= 0 ? (row[memoIdx]||'') : '';
+    if(findDuplicateTransaction(date, amount, categoryId)){
+      duplicates.push({ date, amount, memo, categoryId, payment, accountId, cardId });
+      return;
+    }
+    state.transactions.push({ id: uid(), date, amount, categoryId, payment, memo, accountId, cardId, source:'csv' });
+    imported++;
+  });
+  saveState();
+  closeModal();
+  renderTabContent();
+  let msg = `${imported}件インポートしました`;
+  if(skipped) msg += `(不正データ${skipped}件スキップ)`;
+  if(duplicates.length) msg += ` / 重複の疑い${duplicates.length}件は取り込みませんでした`;
+  toast(msg);
+  if(duplicates.length) openDuplicateReviewModal(duplicates);
+}
+
+function openDuplicateReviewModal(duplicates){
+  openModal(`
+    <h3>重複の可能性がありスキップした項目</h3>
+    <p class="help-text">同じ日付・同じ金額の取引が既に登録されているため取り込みませんでした(定期取引で反映済みのPayPay支払いなど)。実際には別の取引であれば、チェックして追加インポートしてください。</p>
+    <div style="max-height:280px;overflow-y:auto;">
+      <table>
+        <thead><tr><th></th><th>日付</th><th>金額</th><th>摘要</th></tr></thead>
+        <tbody>
+          ${duplicates.map((d,i)=>`<tr>
+            <td><input type="checkbox" data-dup-idx="${i}"></td>
+            <td class="mono">${d.date}</td>
+            <td class="mono">${yen(d.amount)}</td>
+            <td style="color:var(--dim2);font-size:12px;">${d.memo||''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCloseDupReview">閉じる</button>
+      <button class="btn" id="btnForceImportDup">選択した項目を追加インポート</button>
+    </div>
+  `);
+  document.getElementById('btnCloseDupReview').onclick = closeModal;
+  document.getElementById('btnForceImportDup').onclick = ()=>{
+    let added = 0;
+    document.querySelectorAll('[data-dup-idx]:checked').forEach(cb=>{
+      const d = duplicates[parseInt(cb.dataset.dupIdx)];
+      state.transactions.push({ id: uid(), date: d.date, amount: d.amount, categoryId: d.categoryId, payment: d.payment, memo: d.memo, accountId: d.accountId, cardId: d.cardId, source:'csv' });
+      added++;
+    });
+    saveState();
+    closeModal();
+    renderTabContent();
+    toast(`${added}件を追加インポートしました`);
+  };
+}
+
+/* ================= Recurring transactions ================= */
+function daysInMonth(ym){
+  const [y,m] = ym.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function recurringKey(ruleId, ym){ return ruleId + ':' + ym; }
+function isRuleAppliedFor(ruleId, ym){
+  return state.appliedRecurring.includes(recurringKey(ruleId, ym));
+}
+// 頻度が「指定した月のみ」(賞与など)の場合、その月に該当するかを判定
+function ruleAppliesToMonth(rule, ym){
+  if(rule.frequency === 'yearly'){
+    const m = parseInt(ym.split('-')[1], 10);
+    return Array.isArray(rule.months) && rule.months.includes(m);
+  }
+  return true;
+}
+
+function applyRecurringForMonth(ym){
+  let count = 0, linked = 0;
+  state.recurring.filter(r=>r.active !== false && ruleAppliesToMonth(r, ym)).forEach(rule=>{
+    if(isRuleAppliedFor(rule.id, ym)) return;
+    const day = clamp(rule.dayOfMonth, 1, daysInMonth(ym));
+    const date = ym + '-' + String(day).padStart(2,'0');
+    if(findDuplicateTransaction(date, rule.amount, rule.categoryId)){
+      // 同日・同額・同カテゴリの取引が既にある(例: CSV取込済み)場合は二重登録せず「反映済み」として扱う
+      state.appliedRecurring.push(recurringKey(rule.id, ym));
+      linked++;
+      return;
+    }
+    state.transactions.push({
+      id: uid(), date, amount: rule.amount, categoryId: rule.categoryId,
+      payment: rule.payment, memo: rule.memo || ('定期: ' + (rule.name||'')), source:'recurring',
+      accountId: rule.accountId || null, cardId: rule.cardId || null, transferToAccountId: rule.transferToAccountId || null,
+      recurringRuleId: rule.id
+    });
+    state.appliedRecurring.push(recurringKey(rule.id, ym));
+    count++;
+  });
+  if(count > 0 || linked > 0) saveState();
+  return { count, linked };
+}
+function pendingRecurringCount(ym){
+  return state.recurring.filter(r=>r.active !== false && ruleAppliesToMonth(r, ym) && !isRuleAppliedFor(r.id, ym)).length;
+}
+
+// 今後(今月を含む)Nヶ月分の定期取引(確定要素)をまとめて反映する。
+// 賞与など「指定した月のみ」のものは、対象月にだけ自動で反映される。
+function applyRecurringForNextMonths(n){
+  n = n || 12;
+  const thisYm = todayStr().slice(0,7);
+  let totalCount = 0, totalLinked = 0;
+  const perMonth = [];
+  for(let i=0;i<n;i++){
+    const ym = shiftMonth(thisYm, i);
+    const { count, linked } = applyRecurringForMonth(ym);
+    if(count > 0 || linked > 0) perMonth.push({ ym, count, linked });
+    totalCount += count; totalLinked += linked;
+  }
+  return { totalCount, totalLinked, perMonth };
+}
+
+function monthListLabel(months){
+  return (months||[]).slice().sort((a,b)=>a-b).map(m=>m+'月').join('・');
+}
+
+function renderRecurring(){
+  const pending = pendingRecurringCount(currentMonth);
+  const rows = state.recurring.map(rule=>{
+    const cat = catById(rule.categoryId);
+    const srcLabel = paymentSourceLabel(rule);
+    const applied = isRuleAppliedFor(rule.id, currentMonth);
+    const freqLabel = rule.frequency === 'yearly'
+      ? `${monthListLabel(rule.months)} ${rule.dayOfMonth}日`
+      : `毎月${rule.dayOfMonth}日`;
+    return `<tr>
+      <td>${rule.name || (cat?cat.name:'')}</td>
+      <td>${cat ? `<span class="type-tag type-${cat.type}">${cat.name}</span>` : '(削除済み)'}</td>
+      <td class="mono">${yen(rule.amount)}</td>
+      <td class="mono">${freqLabel}</td>
+      <td style="font-size:12px;color:var(--dim);">${srcLabel||'—'}</td>
+      <td style="color:var(--dim2);font-size:12px;">${rule.active===false?'停止中':(!ruleAppliesToMonth(rule,currentMonth)?'対象月外':(applied?`${monthLabel(currentMonth)}反映済み`:'未反映'))}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit-rec="${rule.id}" title="編集">✎</button>
+          <button class="icon-btn" data-del-rec="${rule.id}" title="削除">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="panel">
+      <h3>定期取引</h3>
+      <p class="help-text">給与の振込日やローン・カードの引落日のような毎月のものに加え、賞与(ボーナス)のような「特定の月だけ」発生するものも登録できます。「${monthLabel(currentMonth)}分を反映」を押すと、この月が対象のものだけ取引明細に自動で追加されます。</p>
+      <div class="filter-row">
+        ${pending>0 ? `<button class="btn" id="btnApplyRecurring">${monthLabel(currentMonth)}分を反映(${pending}件)</button>` : ''}
+        ${state.recurring.length ? `<button class="btn secondary" id="btnApplyNext12">今後12ヶ月分をまとめて反映</button>` : ''}
+      </div>
+      <p class="help-text">「今後12ヶ月分をまとめて反映」は、今月から12ヶ月先までの確定している定期取引(給与・ローン引落・賞与など)を予測として先に取引明細へ登録します。ダッシュボードで月を送ると、その月の予測スコア・収支も確認できます。実績のCSVを取り込んだ月は、既存の取引と重複しないよう自動でスキップされます。</p>
+      ${rows ? `
+      <table>
+        <thead><tr><th>名前</th><th>カテゴリ</th><th>金額</th><th>頻度</th><th>支払元</th><th>状態</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : `<div class="empty-state">まだ登録されていません。給与やローン引落、賞与などを登録すると、月ごとの入力が楽になります。</div>`}
+      <div class="section-gap"><button class="btn secondary" id="btnAddRecurring">+ 定期取引を追加</button></div>
+    </div>
+  `;
+}
+
+function afterRenderRecurring(){
+  const applyBtn = document.getElementById('btnApplyRecurring');
+  if(applyBtn) applyBtn.onclick = ()=>{
+    const { count, linked } = applyRecurringForMonth(currentMonth);
+    renderTabContent();
+    toast(`${count}件反映しました${linked? `(${linked}件は取込済みのため紐付けのみ)`:''}`);
+  };
+  const applyNext12 = document.getElementById('btnApplyNext12');
+  if(applyNext12) applyNext12.onclick = ()=>{
+    if(!confirm('今月から12ヶ月先までの定期取引を、取引明細に先に登録します。よろしいですか?(既存の取引と重複するものは自動でスキップされます)')) return;
+    const { totalCount, totalLinked } = applyRecurringForNextMonths(12);
+    renderTabContent();
+    toast(`${totalCount}件反映しました${totalLinked? `(${totalLinked}件は取込済みのため紐付けのみ)`:''}`);
+  };
+  const addBtn = document.getElementById('btnAddRecurring');
+  if(addBtn) addBtn.onclick = ()=> openRecurringForm();
+  document.querySelectorAll('[data-edit-rec]').forEach(btn=>{
+    btn.onclick = ()=> openRecurringForm(state.recurring.find(r=>r.id===btn.dataset.editRec));
+  });
+  document.querySelectorAll('[data-del-rec]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const ruleId = btn.dataset.delRec;
+      if(!confirm('この定期取引を削除しますか?')) return;
+      const today = todayStr();
+      const futureTx = state.transactions.filter(t => t.recurringRuleId === ruleId && t.date > today);
+      let deletedTx = 0;
+      if(futureTx.length > 0 && confirm(`この定期取引から作成済みの未来日の予測取引が${futureTx.length}件あります。一緒に削除しますか?(過去・今月分は残ります)`)){
+        state.transactions = state.transactions.filter(t => !(t.recurringRuleId === ruleId && t.date > today));
+        deletedTx = futureTx.length;
+      }
+      state.recurring = state.recurring.filter(r=>r.id!==ruleId);
+      saveState(); renderTabContent();
+      toast(`削除しました${deletedTx ? `(未来の予測取引${deletedTx}件も削除)` : ''}`);
+    };
+  });
+}
+
+function openRecurringForm(existing){
+  const isEdit = !!existing;
+  const r = existing || { name:'', categoryId: state.categories[0]?.id, amount:'', dayOfMonth: 25, payment:'', memo:'', active:true, accountId:'', cardId:'', transferToAccountId:'', frequency:'monthly', months:[] };
+  const initType = catById(r.categoryId)?.type || 'income';
+  const monthChecks = Array.from({length:12}, (_,i)=>i+1).map(m=>`
+    <label style="display:inline-flex;align-items:center;gap:4px;margin:0 10px 6px 0;font-size:12.5px;color:var(--text);font-weight:400;">
+      <input type="checkbox" class="rMonthCheck" value="${m}" ${((r.months||[]).includes(m))?'checked':''}> ${m}月
+    </label>`).join('');
+  openModal(`
+    <h3>${isEdit?'定期取引を編集':'定期取引を追加'}</h3>
+    <div class="field"><label>名前(任意)</label><input type="text" id="rName" value="${r.name||''}" placeholder="例: 給与, 住宅ローン引落, 夏の賞与"></div>
+    <div class="form-row">
+      <div class="field"><label>金額</label><input type="number" id="rAmount" value="${r.amount}" min="0" placeholder="例: 350000"></div>
+      <div class="field"><label>日付</label><input type="number" id="rDay" value="${r.dayOfMonth}" min="1" max="31"></div>
+    </div>
+    <div class="field">
+      <label>頻度</label>
+      <select id="rFrequency">
+        <option value="monthly" ${r.frequency!=='yearly'?'selected':''}>毎月</option>
+        <option value="yearly" ${r.frequency==='yearly'?'selected':''}>指定した月のみ(賞与など)</option>
+      </select>
+    </div>
+    <div id="rMonthsWrap" style="display:none;">
+      <label>対象月</label>
+      <div class="filter-row" style="margin:2px 0 6px;">
+        <button type="button" class="btn secondary small" id="rPresetSummerWinter">夏・冬(6月・12月)</button>
+        <button type="button" class="btn secondary small" id="rPresetTriple">春・夏・冬(3月・6月・12月)</button>
+      </div>
+      <div>${monthChecks}</div>
+    </div>
+    <div class="field">
+      <label>カテゴリ</label>
+      <select id="rCategory">${categoryOptionsGrouped(r.categoryId)}</select>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label id="rPaymentLabel">${paymentLabelFor(initType)}</label>
+        <select id="rPayment"></select>
+      </div>
+      <div class="field">
+        <label>支払元・口座(任意)</label>
+        <select id="rPaymentSource">${paymentSourceOptionsHtml(r.accountId, r.cardId)}</select>
+      </div>
+    </div>
+    <div class="field" id="rTransferWrap" style="display:none;">
+      <label>振替先口座(任意・積立など)</label>
+      <select id="rTransferTo">${accountOptionsHtml(r.transferToAccountId)}</select>
+      <div class="help-text">「支払元・口座」から出て、この口座に入金される定期振替として記録します(例:東春信金 → 積立、または賞与口座 → 積立)。</div>
+    </div>
+    <div class="field">
+      <label>状態</label>
+      <select id="rActive">
+        <option value="true" ${r.active!==false?'selected':''}>有効</option>
+        <option value="false" ${r.active===false?'selected':''}>停止中</option>
+      </select>
+    </div>
+    <div class="field"><label>メモ(任意)</label><input type="text" id="rMemo" value="${r.memo||''}"></div>
+    <p class="help-text">31日を指定した月に30日までしかない場合は、その月の末日に自動調整されます。</p>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelRec">キャンセル</button>
+      <button class="btn" id="btnSaveRec">保存</button>
+    </div>
+  `);
+  function refreshRecPayment(selected){
+    const type = catById(document.getElementById('rCategory').value)?.type || 'variable';
+    document.getElementById('rPaymentLabel').textContent = paymentLabelFor(type);
+    const methods = paymentMethodsFor(type);
+    document.getElementById('rPayment').innerHTML = methods
+      .map(p=>`<option value="${p}" ${p===selected?'selected':''}>${p}</option>`).join('');
+    document.getElementById('rTransferWrap').style.display = (type === 'savings' && state.accounts.length) ? 'block' : 'none';
+  }
+  function refreshFrequencyUI(){
+    document.getElementById('rMonthsWrap').style.display = (document.getElementById('rFrequency').value === 'yearly') ? 'block' : 'none';
+  }
+  function setMonths(list){
+    document.querySelectorAll('.rMonthCheck').forEach(cb=>{ cb.checked = list.includes(parseInt(cb.value)); });
+  }
+  refreshRecPayment(r.payment);
+  refreshFrequencyUI();
+  document.getElementById('rCategory').onchange = ()=> refreshRecPayment(null);
+  document.getElementById('rFrequency').onchange = refreshFrequencyUI;
+  document.getElementById('rPresetSummerWinter').onclick = ()=> setMonths([6,12]);
+  document.getElementById('rPresetTriple').onclick = ()=> setMonths([3,6,12]);
+  document.getElementById('btnCancelRec').onclick = closeModal;
+  document.getElementById('btnSaveRec').onclick = ()=>{
+    const name = document.getElementById('rName').value.trim();
+    const amount = parseFloat(document.getElementById('rAmount').value);
+    const dayOfMonth = clamp(parseInt(document.getElementById('rDay').value), 1, 31);
+    const frequency = document.getElementById('rFrequency').value;
+    const months = Array.from(document.querySelectorAll('.rMonthCheck:checked')).map(cb=>parseInt(cb.value));
+    const categoryId = document.getElementById('rCategory').value;
+    const payment = document.getElementById('rPayment').value;
+    const { accountId, cardId } = parsePaymentSource(document.getElementById('rPaymentSource').value);
+    const transferToAccountId = document.getElementById('rTransferTo') ? (document.getElementById('rTransferTo').value || null) : null;
+    const active = document.getElementById('rActive').value === 'true';
+    const memo = document.getElementById('rMemo').value;
+    if(isNaN(amount) || amount <= 0 || isNaN(dayOfMonth)){ toast('金額と日付を確認してください'); return; }
+    if(frequency === 'yearly' && months.length === 0){ toast('対象月を1つ以上選んでください'); return; }
+    if(isEdit){
+      const ruleId = existing.id;
+      Object.assign(existing, {name, amount, dayOfMonth, frequency, months, categoryId, payment, accountId, cardId, transferToAccountId, active, memo});
+      const today = todayStr();
+      const futureTx = state.transactions.filter(t => t.recurringRuleId === ruleId && t.date > today);
+      if(futureTx.length > 0){
+        if(confirm(`この定期取引から作成済みの未来日の予測取引が${futureTx.length}件あります。新しい内容(金額・カテゴリ・支払元など)に更新しますか?\n(過去・今月分の取引は変更されません)`)){
+          futureTx.forEach(t=>{
+            t.amount = amount; t.categoryId = categoryId; t.payment = payment;
+            t.accountId = accountId; t.cardId = cardId; t.transferToAccountId = transferToAccountId;
+            if(!t.memo || t.memo.startsWith('定期: ')) t.memo = memo || ('定期: ' + (name||''));
+          });
+          toast(`保存しました(未来の予測取引${futureTx.length}件も更新)`);
+        } else {
+          toast('保存しました');
+        }
+      } else {
+        toast('保存しました');
+      }
+    } else {
+      state.recurring.push({ id: uid(), name, amount, dayOfMonth, frequency, months, categoryId, payment, accountId, cardId, transferToAccountId, active, memo });
+      toast('保存しました');
+    }
+    saveState();
+    closeModal();
+    renderTabContent();
+  };
+}
+
+/* ================= Accounts (bank accounts / balances) ================= */
+const ACCOUNT_TYPES = ['銀行口座','現金','その他'];
+
+function accountById(id){ return state.accounts.find(a=>a.id===id); }
+function lastDayOfMonth(ym){ return ym + '-' + String(daysInMonth(ym)).padStart(2,'0'); }
+
+function computeAccountBalance(accountId, asOfDate){
+  const acc = accountById(accountId);
+  if(!acc) return null;
+  let balance = acc.initialBalance || 0;
+  const baseDate = acc.initialBalanceDate || '0000-01-01';
+  // 口座に直接紐づく取引(カード経由でないもの)
+  state.transactions
+    .filter(t => t.accountId === accountId && !t.cardId && t.date > baseDate && t.date <= asOfDate)
+    .forEach(t=>{
+      const cat = catById(t.categoryId);
+      if(!cat) return;
+      balance += cat.type === 'income' ? t.amount : -t.amount;
+    });
+  // この口座を引落口座とするカードの利用分は、締め日・支払日に応じた引落日にまとめて反映
+  state.cards.filter(c => c.linkedAccountId === accountId).forEach(card=>{
+    state.transactions.filter(t => t.cardId === card.id).forEach(t=>{
+      const debitDate = cardCycleDebitDate(card, t.date);
+      if(debitDate > baseDate && debitDate <= asOfDate){
+        const cat = catById(t.categoryId);
+        if(!cat) return;
+        balance += cat.type === 'income' ? t.amount : -t.amount;
+      }
+    });
+  });
+  // この口座を振替先とする取引(例: 積立口座への定期振替)は、送金元の減少とは別に入金として加算
+  state.transactions
+    .filter(t => t.transferToAccountId === accountId && t.date > baseDate && t.date <= asOfDate)
+    .forEach(t=>{ balance += t.amount; });
+  // 口座間振替ログ(積立の取り崩しなど、カテゴリを伴わない単純な口座間移動)
+  state.transfers
+    .filter(tr => tr.date > baseDate && tr.date <= asOfDate)
+    .forEach(tr=>{
+      if(tr.fromAccountId === accountId) balance -= tr.amount;
+      if(tr.toAccountId === accountId) balance += tr.amount;
+    });
+  return balance;
+}
+
+// カードが「今まさに積み上がっている(まだ支払われていない)締めサイクル」がどの月かを判定
+function cardOpenCycleMonth(card, dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const closing = clamp(card.closingDay, 1, daysInMonth(y+'-'+String(m).padStart(2,'0')));
+  let cycleY = y, cycleM = m;
+  if(d > closing){ cycleM += 1; if(cycleM>12){cycleM=1; cycleY++;} }
+  return cycleY + '-' + String(cycleM).padStart(2,'0');
+}
+
+// 特定の口座について、指定した月ごとの「まだ反映していない定期取引」の純増減を返す
+function pendingRecurringNetForAccountInMonth(accountId, ym){
+  let net = 0;
+  state.recurring.filter(r=>r.active !== false && ruleAppliesToMonth(r, ym) && !isRuleAppliedFor(r.id, ym)).forEach(r=>{
+    if(r.accountId === accountId){
+      const cat = catById(r.categoryId);
+      const sign = (cat && cat.type === 'income') ? 1 : -1;
+      net += sign * r.amount;
+    }
+    if(r.transferToAccountId === accountId){
+      net += r.amount;
+    }
+  });
+  return net;
+}
+
+// 登録済みの定期取引(未反映分)・カード利用の平均額・そして「予定」として手動で先に入力した
+// 未来日の取引(取引明細に直接追加したもの)もすべて含めて、今後の月末残高を概算する
+function projectAccountBalances(accountId, monthsAhead){
+  monthsAhead = monthsAhead || 12;
+  const acc = accountById(accountId);
+  if(!acc) return null;
+  const today = todayStr();
+  const thisYm = today.slice(0,7);
+  const startBalance = computeAccountBalance(accountId, today);
+
+  // この口座を引落口座とするカードは、直近の実績サイクルの平均額を毎月の見積もり引落として使う
+  const linkedCards = state.cards.filter(c=>c.linkedAccountId === accountId);
+  let cardMonthlyEstimate = 0;
+  linkedCards.forEach(card=>{
+    const openCycle = cardOpenCycleMonth(card, today);
+    const pastCycles = [1,2,3].map(n=>shiftMonth(openCycle, -n));
+    const pastTotals = pastCycles.map(ym=>cardCycleTotal(card, ym)).filter(v=>v > 0);
+    const estimate = pastTotals.length
+      ? pastTotals.reduce((s,v)=>s+v,0) / pastTotals.length
+      : cardCycleTotal(card, openCycle);
+    cardMonthlyEstimate += estimate;
+  });
+
+  const series = [{ ym: thisYm, balance: startBalance }];
+  let cumulativePendingRecurring = 0;
+  let firstNegativeYm = (startBalance < 0) ? thisYm : null;
+  for(let i=1;i<=monthsAhead;i++){
+    const ym = shiftMonth(thisYm, i);
+    cumulativePendingRecurring += pendingRecurringNetForAccountInMonth(accountId, ym);
+    // 実績+すでに入力済みの「予定」取引(未来日で手動追加したものを含む)をそのまま反映
+    const recorded = computeAccountBalance(accountId, lastDayOfMonth(ym));
+    const bal = recorded + cumulativePendingRecurring - (cardMonthlyEstimate * i);
+    series.push({ ym, balance: bal });
+    if(firstNegativeYm === null && bal < 0) firstNegativeYm = ym;
+  }
+
+  return { series, cardMonthlyEstimate, firstNegativeYm, hasCardHistory: linkedCards.length > 0 };
+}
+
+// ある口座について、現在の残高と「これから確実に動く予定のお金」(手動で先に入れた予定取引を含む)を踏まえた残高不足を判定
+function computeAccountAlert(accountId){
+  const acc = accountById(accountId);
+  if(!acc) return null;
+  const today = todayStr();
+  const thisYm = today.slice(0,7);
+  const currentBalance = computeAccountBalance(accountId, today);
+
+  // 近い将来(3ヶ月先まで)で、実際にマイナスへ落ち込むタイミングがないかをチェック
+  const proj = projectAccountBalances(accountId, 3);
+  const futureNegative = proj ? proj.series.slice(1).find(p => p.balance < 0) : null;
+
+  // 今月まだ「反映」していない定期取引(この口座が支払元のもの)
+  const pendingRecurring = state.recurring.filter(r=>
+    r.active !== false && r.accountId === accountId && ruleAppliesToMonth(r, thisYm) && !isRuleAppliedFor(r.id, thisYm)
+  ).map(r=>{
+    const cat = catById(r.categoryId);
+    const sign = (cat && cat.type === 'income') ? 1 : -1;
+    return { name: r.name || (cat?cat.name:'定期取引'), amount: r.amount, signedAmount: sign*r.amount, day: r.dayOfMonth };
+  });
+  const pendingTransfersIn = state.recurring.filter(r=>
+    r.active !== false && r.transferToAccountId === accountId && ruleAppliesToMonth(r, thisYm) && !isRuleAppliedFor(r.id, thisYm)
+  ).map(r=>({ name: (r.name||'振替') + '(入金予定)', amount: r.amount, signedAmount: r.amount, day: r.dayOfMonth }));
+
+  // 手動で追加した未来日の「予定」取引(この口座・カード・振替のいずれかに紐づくもの)
+  const plannedFutureTx = state.transactions.filter(t => t.date > today && (
+    t.accountId === accountId || t.transferToAccountId === accountId ||
+    (t.cardId && cardById(t.cardId)?.linkedAccountId === accountId)
+  )).sort((a,b)=> a.date.localeCompare(b.date));
+
+  // この口座が引落口座になっているカードの、まだ支払われていない締めサイクルの利用額
+  const upcomingCardPayments = state.cards.filter(c=>c.linkedAccountId === accountId).map(card=>{
+    const cycleYm = cardOpenCycleMonth(card, today);
+    const info = nextPaymentInfo(card, cycleYm);
+    return { name: card.name, date: info.date, amount: info.amount };
+  }).filter(p=>p.amount > 0);
+
+  return {
+    accountId, accountName: acc.name, currentBalance,
+    isNegativeNow: currentBalance < 0,
+    isProjectedNegative: !(currentBalance < 0) && !!futureNegative,
+    projectedNegativeMonth: futureNegative ? futureNegative.ym : null,
+    projectedNegativeBalance: futureNegative ? futureNegative.balance : null,
+    upcomingCardPayments, pendingRecurring, pendingTransfersIn, plannedFutureTx
+  };
+}
+
+function accountOptionsHtml(selectedId){
+  const opts = state.accounts.map(a=>`<option value="${a.id}" ${a.id===selectedId?'selected':''}>${a.name}</option>`).join('');
+  return `<option value="" ${!selectedId?'selected':''}>(指定なし)</option>${opts}`;
+}
+
+function renderAccounts(){
+  const asOf = lastDayOfMonth(currentMonth);
+  const rows = state.accounts.map(acc=>{
+    const balance = computeAccountBalance(acc.id, asOf);
+    const linkedCards = state.cards.filter(c=>c.linkedAccountId===acc.id);
+    const directlyUsed = state.transactions.some(t=>t.accountId===acc.id) || state.recurring.some(r=>r.accountId===acc.id);
+    const cardActivity = linkedCards.some(c=>state.transactions.some(t=>t.cardId===c.id));
+    const usedInTransfers = state.transfers.some(tr=>tr.fromAccountId===acc.id || tr.toAccountId===acc.id);
+    const used = directlyUsed || linkedCards.length > 0 || usedInTransfers;
+    const alert = computeAccountAlert(acc.id);
+    return `
+    <div class="panel">
+      <div class="filter-row" style="justify-content:space-between;margin-bottom:8px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">${acc.name}</div>
+          <div style="font-size:11px;color:var(--dim2);">${acc.type}${acc.memo?' ・ '+acc.memo:''}</div>
+        </div>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit-acc="${acc.id}" title="編集">✎</button>
+          <button class="icon-btn" data-del-acc="${acc.id}" title="削除" ${used?'style="opacity:.35;cursor:not-allowed;" disabled':''}>✕</button>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">${monthLabel(currentMonth)}末時点の残高(概算)</div>
+        <div class="kpi-val mono ${balance>=0?'neutral':'neg'}" style="font-size:24px;">${yen(balance)}</div>
+      </div>
+      <p class="help-text">基準残高 ${yen(acc.initialBalance||0)}(${acc.initialBalanceDate||'未設定'}時点)+ この口座に紐づく取引の収支から計算しています。実際の残高とはズレる場合があるので、通帳・アプリの残高で時々確認してください。</p>
+      ${(!directlyUsed && !cardActivity) ? `<p class="help-text" style="color:var(--gold);">この口座に紐付いた取引がまだありません。「取引明細」タブで支払方法ごとに一括選択→支払元に「${acc.name}」を設定すると反映されます。</p>` : ''}
+      ${alert && (alert.isNegativeNow || alert.isProjectedNegative) ? `
+      <div class="panel" style="background:rgba(199,92,92,.1);border-color:var(--danger);margin-top:10px;margin-bottom:0;">
+        <div style="font-size:13px;font-weight:600;color:var(--coral);margin-bottom:6px;">
+          ⚠ ${alert.isNegativeNow ? '現在の残高がマイナスです' : `${monthLabel(alert.projectedNegativeMonth)}頃に残高不足の見込み`}
+        </div>
+        <div style="font-size:12px;color:var(--dim);margin-bottom:6px;">
+          現在の残高: <span class="mono ${alert.currentBalance>=0?'neutral':'neg'}">${yen(alert.currentBalance)}</span>
+          ${!alert.isNegativeNow ? ` / ${monthLabel(alert.projectedNegativeMonth)}末の見込み: <span class="mono neg">${yen(alert.projectedNegativeBalance)}</span>` : ''}
+        </div>
+        ${alert.upcomingCardPayments.length ? `<div class="help-text">未払いのカード引落: ${alert.upcomingCardPayments.map(p=>`${p.name} ${yen(p.amount)}(${p.date})`).join(' / ')}</div>` : ''}
+        ${alert.pendingRecurring.length ? `<div class="help-text">今月未反映の定期取引: ${alert.pendingRecurring.map(p=>`${p.name} ${p.signedAmount>=0?'+':''}${yen(p.signedAmount)}`).join(' / ')}</div>` : ''}
+        ${alert.pendingTransfersIn.length ? `<div class="help-text">今月未反映の入金予定: ${alert.pendingTransfersIn.map(p=>`${p.name} +${yen(p.amount)}`).join(' / ')}</div>` : ''}
+        ${alert.plannedFutureTx.length ? `<div class="help-text">入力済みの予定取引: ${alert.plannedFutureTx.slice(0,5).map(p=>`${p.date} ${p.memo||catById(p.categoryId)?.name||''} ${yen(p.amount)}`).join(' / ')}${alert.plannedFutureTx.length>5?` 他${alert.plannedFutureTx.length-5}件`:''}</div>` : ''}
+      </div>` : ''}
+      <div class="section-gap">
+        <h3 style="margin-bottom:8px;">残高予測(今後12ヶ月)</h3>
+        <canvas id="forecast-${acc.id}" style="width:100%;height:150px;display:block;"></canvas>
+        <div id="forecastNote-${acc.id}"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    ${state.accounts.length ? rows : `<div class="panel"><div class="empty-state">口座がまだ登録されていません。銀行口座を登録すると、引落・振込・給与振込などの取引を紐づけて残高を追跡できます。</div></div>`}
+    <div class="panel">
+      <h3>口座を追加</h3>
+      <button class="btn secondary" id="btnAddAccount">+ 口座を追加</button>
+    </div>
+    ${renderTransferSection()}
+  `;
+}
+
+function afterRenderAccounts(){
+  const addBtn = document.getElementById('btnAddAccount');
+  if(addBtn) addBtn.onclick = ()=> openAccountForm();
+  document.querySelectorAll('[data-edit-acc]').forEach(btn=>{
+    btn.onclick = ()=> openAccountForm(accountById(btn.dataset.editAcc));
+  });
+  document.querySelectorAll('[data-del-acc]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(btn.disabled) return;
+      if(confirm('この口座を削除しますか?')){
+        state.accounts = state.accounts.filter(a=>a.id!==btn.dataset.delAcc);
+        saveState(); renderTabContent(); toast('削除しました');
+      }
+    };
+  });
+  state.accounts.forEach(acc=> drawBalanceForecastChart(acc.id));
+
+  const addTransferBtn = document.getElementById('btnAddTransfer');
+  if(addTransferBtn) addTransferBtn.onclick = ()=> openTransferForm();
+  document.querySelectorAll('[data-edit-transfer]').forEach(btn=>{
+    btn.onclick = ()=> openTransferForm(state.transfers.find(tr=>tr.id===btn.dataset.editTransfer));
+  });
+  document.querySelectorAll('[data-del-transfer]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(confirm('この振替記録を削除しますか?')){
+        state.transfers = state.transfers.filter(tr=>tr.id!==btn.dataset.delTransfer);
+        saveState(); renderTabContent(); toast('削除しました');
+      }
+    };
+  });
+}
+
+function renderTransferSection(){
+  if(state.accounts.length < 2){
+    return `
+    <div class="panel">
+      <h3>口座間の振替</h3>
+      <p class="help-text">積立口座からの取り崩しなど、口座と口座の間でお金を移動した記録を残せます。振替には2つ以上の口座が必要です。</p>
+    </div>`;
+  }
+  const transfers = state.transfers.slice().sort((a,b)=> b.date.localeCompare(a.date));
+  const rows = transfers.map(tr=>{
+    const from = accountById(tr.fromAccountId);
+    const to = accountById(tr.toAccountId);
+    return `<tr>
+      <td class="mono">${tr.date}</td>
+      <td style="font-size:13px;">${from?from.name:'(削除済み)'} → ${to?to.name:'(削除済み)'}</td>
+      <td class="mono">${yen(tr.amount)}</td>
+      <td style="color:var(--dim2);font-size:12px;">${tr.memo||''}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit-transfer="${tr.id}" title="編集">✎</button>
+          <button class="icon-btn" data-del-transfer="${tr.id}" title="削除">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="panel">
+      <h3>口座間の振替</h3>
+      <p class="help-text">積立口座からの取り崩し(例:積立 → 東春信金)や、口座間の資金移動を記録できます。収入・支出のカテゴリ集計やスコアには影響せず、口座残高だけを動かします。</p>
+      <button class="btn secondary" id="btnAddTransfer">+ 振替を記録</button>
+      ${transfers.length ? `
+      <table class="section-gap">
+        <thead><tr><th>日付</th><th>移動</th><th>金額</th><th>メモ</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : ''}
+    </div>`;
+}
+
+function openTransferForm(existing){
+  const isEdit = !!existing;
+  const tr = existing || { date: todayStr(), fromAccountId: state.accounts[0]?.id, toAccountId: state.accounts[1]?.id, amount:'', memo:'' };
+  openModal(`
+    <h3>${isEdit?'振替を編集':'振替を記録'}</h3>
+    <div class="field"><label>日付</label><input type="date" id="trDate" value="${tr.date}"></div>
+    <div class="form-row">
+      <div class="field">
+        <label>振替元(引き出す口座)</label>
+        <select id="trFrom">${state.accounts.map(a=>`<option value="${a.id}" ${a.id===tr.fromAccountId?'selected':''}>${a.name}</option>`).join('')}</select>
+      </div>
+      <div class="field">
+        <label>振替先(入金される口座)</label>
+        <select id="trTo">${state.accounts.map(a=>`<option value="${a.id}" ${a.id===tr.toAccountId?'selected':''}>${a.name}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="field"><label>金額</label><input type="number" id="trAmount" value="${tr.amount}" min="0" placeholder="例: 30000"></div>
+    <div class="field"><label>メモ(任意)</label><input type="text" id="trMemo" value="${tr.memo||''}" placeholder="例: 家電購入のため積立から引き出し"></div>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelTransfer">キャンセル</button>
+      <button class="btn" id="btnSaveTransfer">保存</button>
+    </div>
+  `);
+  document.getElementById('btnCancelTransfer').onclick = closeModal;
+  document.getElementById('btnSaveTransfer').onclick = ()=>{
+    const date = document.getElementById('trDate').value;
+    const fromAccountId = document.getElementById('trFrom').value;
+    const toAccountId = document.getElementById('trTo').value;
+    const amount = parseFloat(document.getElementById('trAmount').value);
+    const memo = document.getElementById('trMemo').value;
+    if(!date || isNaN(amount) || amount <= 0){ toast('日付と金額を確認してください'); return; }
+    if(fromAccountId === toAccountId){ toast('振替元と振替先は別の口座を選んでください'); return; }
+    if(isEdit){
+      Object.assign(existing, {date, fromAccountId, toAccountId, amount, memo});
+    } else {
+      state.transfers.push({ id: uid(), date, fromAccountId, toAccountId, amount, memo });
+    }
+    saveState();
+    closeModal();
+    renderTabContent();
+    toast('保存しました');
+  };
+}
+
+function drawBalanceForecastChart(accountId){
+  const canvas = document.getElementById('forecast-' + accountId);
+  const noteEl = document.getElementById('forecastNote-' + accountId);
+  if(!canvas) return;
+  const proj = projectAccountBalances(accountId, 12);
+  if(!proj) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || canvas.parentElement.clientWidth;
+  const cssH = 150;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const padX = 10, padY = 14;
+  const w = cssW - padX*2;
+  const h = cssH - padY*2;
+  const values = proj.series.map(p=>p.balance);
+  const maxV = Math.max(...values, 0);
+  const minV = Math.min(...values, 0);
+  const range = (maxV - minV) || 1;
+  const zeroY = padY + h - ((0 - minV) / range) * h;
+
+  // ゼロライン
+  ctx.strokeStyle = 'rgba(139,144,153,.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padX, zeroY);
+  ctx.lineTo(padX + w, zeroY);
+  ctx.stroke();
+
+  const stepX = proj.series.length > 1 ? w / (proj.series.length - 1) : 0;
+  const points = proj.series.map((p,i)=>({
+    x: padX + stepX * i,
+    y: padY + h - ((p.balance - minV) / range) * h,
+    v: p.balance
+  }));
+
+  // 塗り(マイナス域を淡く強調)
+  ctx.beginPath();
+  points.forEach((p,i)=>{ i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y); });
+  const lineColor = proj.firstNegativeYm ? '#c97b4a' : '#4fb286';
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  points.forEach((p,i)=>{
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, i===0?3.6:2.2, 0, Math.PI*2);
+    ctx.fillStyle = p.v < 0 ? '#c75c5c' : lineColor;
+    ctx.fill();
+  });
+
+  ctx.fillStyle = 'rgba(139,144,153,.8)';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  proj.series.forEach((p,idx)=>{
+    if(idx % 3 === 0){
+      const [,m] = p.ym.split('-');
+      ctx.fillText(Number(m) + '月', points[idx].x, cssH - 2);
+    }
+  });
+
+  if(noteEl){
+    const endBalance = proj.series[proj.series.length-1].balance;
+    noteEl.innerHTML = `
+      <p class="help-text">
+        取引明細に実際に記録されている取引(手動で先に入力した未来日の「予定」取引を含む)と、
+        まだ「反映」していない定期取引(給与・賞与・積立など)、
+        ${proj.cardMonthlyEstimate ? `カードの平均利用見積もり(-${yen(proj.cardMonthlyEstimate)}/月)` : 'カード利用'}
+        をもとにした概算です。突発的な支出や収入の変化までは含まれていません。
+      </p>
+      <p class="help-text">12ヶ月後の予測残高: <span class="mono ${endBalance>=0?'neutral':'neg'}">${yen(endBalance)}</span></p>
+      ${proj.firstNegativeYm ? `<p class="help-text" style="color:var(--coral);">⚠ ${monthLabel(proj.firstNegativeYm)}頃に残高がマイナスになる見込みです。</p>` : ''}
+    `;
+  }
+}
+
+function openAccountForm(existing){
+  const isEdit = !!existing;
+  const a = existing || { name:'', type:'銀行口座', initialBalance:'', initialBalanceDate: todayStr(), memo:'' };
+  openModal(`
+    <h3>${isEdit?'口座を編集':'口座を追加'}</h3>
+    <div class="field"><label>口座名</label><input type="text" id="aName" value="${a.name}" placeholder="例: 〇〇銀行 普通"></div>
+    <div class="field">
+      <label>種類</label>
+      <select id="aType">${ACCOUNT_TYPES.map(t=>`<option value="${t}" ${t===a.type?'selected':''}>${t}</option>`).join('')}</select>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>基準残高</label><input type="number" id="aBalance" value="${a.initialBalance}" placeholder="例: 500000"></div>
+      <div class="field"><label>基準日</label><input type="date" id="aDate" value="${a.initialBalanceDate}"></div>
+    </div>
+    <div class="help-text">「基準残高」は基準日時点の実際の残高を入力してください。それ以降にこの口座と紐づけた取引の収支を足し引きして残高を計算します。</div>
+    <div class="field section-gap"><label>メモ(任意)</label><input type="text" id="aMemo" value="${a.memo||''}"></div>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelAcc">キャンセル</button>
+      <button class="btn" id="btnSaveAcc">保存</button>
+    </div>
+  `);
+  document.getElementById('btnCancelAcc').onclick = closeModal;
+  document.getElementById('btnSaveAcc').onclick = ()=>{
+    const name = document.getElementById('aName').value.trim();
+    const type = document.getElementById('aType').value;
+    const initialBalance = parseFloat(document.getElementById('aBalance').value) || 0;
+    const initialBalanceDate = document.getElementById('aDate').value;
+    const memo = document.getElementById('aMemo').value;
+    if(!name){ toast('口座名を入力してください'); return; }
+    if(isEdit){
+      Object.assign(existing, {name, type, initialBalance, initialBalanceDate, memo});
+    } else {
+      state.accounts.push({ id: uid(), name, type, initialBalance, initialBalanceDate, memo });
+    }
+    saveState();
+    closeModal();
+    renderTabContent();
+    toast('保存しました');
+  };
+}
+
+/* ================= Cards (credit/PayPay cards with settlement account) ================= */
+function cardById(id){ return state.cards.find(c=>c.id===id); }
+
+// そのカード利用日がどの締めサイクルに属し、実際にいつ口座から引き落とされるかを計算
+function cardCycleDebitDate(card, txDate){
+  const [y,m,d] = txDate.split('-').map(Number);
+  let cycleY = y, cycleM = m;
+  const closing = clamp(card.closingDay, 1, daysInMonth(y+'-'+String(m).padStart(2,'0')));
+  if(d > closing){ cycleM += 1; if(cycleM>12){cycleM=1; cycleY++;} }
+  let payY = cycleY, payM = cycleM + 1;
+  if(payM>12){payM=1; payY++;}
+  const payYm = payY+'-'+String(payM).padStart(2,'0');
+  const payDay = clamp(card.paymentDay, 1, daysInMonth(payYm));
+  return payYm + '-' + String(payDay).padStart(2,'0');
+}
+// 締め月(cycleYm)に属する利用期間(開始日翌日〜締め日)を返す
+function cardCycleRange(card, cycleYm){
+  const [y,m] = cycleYm.split('-').map(Number);
+  const endDay = clamp(card.closingDay, 1, daysInMonth(cycleYm));
+  const end = cycleYm + '-' + String(endDay).padStart(2,'0');
+  let py = y, pm = m - 1; if(pm<1){pm=12; py--;}
+  const prevYm = py + '-' + String(pm).padStart(2,'0');
+  const startDay = clamp(card.closingDay, 1, daysInMonth(prevYm));
+  const start = prevYm + '-' + String(startDay).padStart(2,'0');
+  return { start, end };
+}
+function cardCycleTotal(card, cycleYm){
+  const { start, end } = cardCycleRange(card, cycleYm);
+  return state.transactions
+    .filter(t => t.cardId === card.id && t.date > start && t.date <= end)
+    .reduce((s,t)=> s + t.amount, 0);
+}
+function nextPaymentInfo(card, cycleYm){
+  const [y,m] = cycleYm.split('-').map(Number);
+  let payY = y, payM = m + 1; if(payM>12){payM=1; payY++;}
+  const payYm = payY + '-' + String(payM).padStart(2,'0');
+  const payDay = clamp(card.paymentDay, 1, daysInMonth(payYm));
+  return { date: payYm + '-' + String(payDay).padStart(2,'0'), amount: cardCycleTotal(card, cycleYm) };
+}
+
+function paymentSourceOptionsHtml(selectedAccountId, selectedCardId){
+  let html = `<option value="" ${(!selectedAccountId && !selectedCardId)?'selected':''}>(指定なし)</option>`;
+  if(state.cards.length){
+    html += `<optgroup label="カード">` + state.cards.map(c=>
+      `<option value="card:${c.id}" ${selectedCardId===c.id?'selected':''}>${c.name}</option>`).join('') + `</optgroup>`;
+  }
+  if(state.accounts.length){
+    html += `<optgroup label="口座(振込・引落)">` + state.accounts.map(a=>
+      `<option value="account:${a.id}" ${selectedAccountId===a.id?'selected':''}>${a.name}</option>`).join('') + `</optgroup>`;
+  }
+  return html;
+}
+function parsePaymentSource(value){
+  if(!value) return { accountId: null, cardId: null };
+  if(value.startsWith('account:')) return { accountId: value.slice(8), cardId: null };
+  if(value.startsWith('card:')) return { accountId: null, cardId: value.slice(5) };
+  return { accountId: null, cardId: null };
+}
+function paymentSourceLabel(t){
+  let base = null;
+  if(t.cardId){ const c = cardById(t.cardId); base = c ? c.name + '(カード)' : null; }
+  else if(t.accountId){ const a = accountById(t.accountId); base = a ? a.name : null; }
+  if(t.transferToAccountId){
+    const toAcc = accountById(t.transferToAccountId);
+    if(toAcc) return (base || '(支払元未設定)') + ' → ' + toAcc.name;
+  }
+  return base;
+}
+
+function renderCards(){
+  const rows = state.cards.map(card=>{
+    const acc = card.linkedAccountId ? accountById(card.linkedAccountId) : null;
+    const cycleTotal = cardCycleTotal(card, currentMonth);
+    const next = nextPaymentInfo(card, currentMonth);
+    const used = state.transactions.some(t=>t.cardId===card.id) || state.recurring.some(r=>r.cardId===card.id);
+    return `
+    <div class="panel">
+      <div class="filter-row" style="justify-content:space-between;margin-bottom:8px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">${card.name}</div>
+          <div style="font-size:11px;color:var(--dim2);">
+            引落口座: ${acc ? acc.name : '未設定'} ・ 毎月${card.closingDay}日締め / 翌月${card.paymentDay}日払い
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit-card="${card.id}" title="編集">✎</button>
+          <button class="icon-btn" data-del-card="${card.id}" title="削除" ${used?'style="opacity:.35;cursor:not-allowed;" disabled':''}>✕</button>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="kpi-card">
+          <div class="kpi-label">${monthLabel(currentMonth)}締めサイクルの利用額</div>
+          <div class="kpi-val mono neutral">${yen(cycleTotal)}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">次回引落予定(${next.date})</div>
+          <div class="kpi-val mono neutral">${yen(next.amount)}</div>
+        </div>
+      </div>
+      ${!acc ? `<p class="help-text" style="color:var(--coral);">引落口座が未設定のため、口座の残高計算には反映されません。</p>` : ''}
+      ${!used ? `<p class="help-text" style="color:var(--gold);">このカードに紐付いた取引がまだありません。「取引明細」タブで支払方法ごとに一括選択→支払元に「${card.name}」を設定すると反映されます。</p>` : ''}
+    </div>`;
+  }).join('');
+
+  return `
+    ${state.cards.length ? rows : `<div class="panel"><div class="empty-state">カードがまだ登録されていません。PayPayカードなどを登録し、引落口座を指定すると、カード利用分が締め日・支払日に応じて自動的に口座残高に反映されます。</div></div>`}
+    <div class="panel">
+      <h3>カードを追加</h3>
+      <button class="btn secondary" id="btnAddCard">+ カードを追加</button>
+    </div>
+  `;
+}
+
+function afterRenderCards(){
+  const addBtn = document.getElementById('btnAddCard');
+  if(addBtn) addBtn.onclick = ()=> openCardForm();
+  document.querySelectorAll('[data-edit-card]').forEach(btn=>{
+    btn.onclick = ()=> openCardForm(cardById(btn.dataset.editCard));
+  });
+  document.querySelectorAll('[data-del-card]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(btn.disabled) return;
+      if(confirm('このカードを削除しますか?')){
+        state.cards = state.cards.filter(c=>c.id!==btn.dataset.delCard);
+        saveState(); renderTabContent(); toast('削除しました');
+      }
+    };
+  });
+}
+
+function openCardForm(existing){
+  const isEdit = !!existing;
+  const c = existing || { name:'', linkedAccountId:'', closingDay:31, paymentDay:10, memo:'' };
+  openModal(`
+    <h3>${isEdit?'カードを編集':'カードを追加'}</h3>
+    <div class="field"><label>カード名</label><input type="text" id="cName" value="${c.name}" placeholder="例: PayPayカード"></div>
+    <div class="field">
+      <label>引落口座</label>
+      <select id="cAccount">
+        <option value="">未設定</option>
+        ${state.accounts.map(a=>`<option value="${a.id}" ${a.id===c.linkedAccountId?'selected':''}>${a.name}</option>`).join('')}
+      </select>
+      ${!state.accounts.length ? `<div class="help-text">先に「口座」タブで引落先の銀行口座を登録しておくと、ここで選べます。</div>` : ''}
+    </div>
+    <div class="form-row">
+      <div class="field"><label>締め日</label><input type="number" id="cClosing" value="${c.closingDay}" min="1" max="31"></div>
+      <div class="field"><label>支払日(翌月)</label><input type="number" id="cPayment" value="${c.paymentDay}" min="1" max="31"></div>
+    </div>
+    <p class="help-text" id="cPresetNote">例:「月末締め翌月27日払い」の場合、締め日=31(自動的に各月の末日として扱われます)、支払日=27。</p>
+    <div class="field"><label>メモ(任意)</label><input type="text" id="cMemo" value="${c.memo||''}"></div>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelCard">キャンセル</button>
+      <button class="btn" id="btnSaveCard">保存</button>
+    </div>
+  `);
+  if(!isEdit){
+    // PayPayカードなど、名前から一般的な締め日・支払日を自動提案(未入力のまま変更していない場合のみ)
+    let daysTouched = false;
+    document.getElementById('cClosing').addEventListener('input', ()=>{ daysTouched = true; });
+    document.getElementById('cPayment').addEventListener('input', ()=>{ daysTouched = true; });
+    document.getElementById('cName').addEventListener('input', (e)=>{
+      if(daysTouched) return;
+      if(/paypay|ペイペイ/i.test(e.target.value)){
+        document.getElementById('cClosing').value = 31;
+        document.getElementById('cPayment').value = 27;
+        document.getElementById('cPresetNote').textContent = 'PayPayカードの標準的な締め・支払サイクル(月末締め翌月27日払い)を自動設定しました。異なる場合は数字を直接編集してください。';
+      }
+    });
+  }
+  document.getElementById('btnCancelCard').onclick = closeModal;
+  document.getElementById('btnSaveCard').onclick = ()=>{
+    const name = document.getElementById('cName').value.trim();
+    const linkedAccountId = document.getElementById('cAccount').value || null;
+    const closingDay = clamp(parseInt(document.getElementById('cClosing').value), 1, 31);
+    const paymentDay = clamp(parseInt(document.getElementById('cPayment').value), 1, 31);
+    const memo = document.getElementById('cMemo').value;
+    if(!name){ toast('カード名を入力してください'); return; }
+    if(isNaN(closingDay) || isNaN(paymentDay)){ toast('締め日・支払日を確認してください'); return; }
+    if(isEdit){
+      Object.assign(existing, {name, linkedAccountId, closingDay, paymentDay, memo});
+    } else {
+      state.cards.push({ id: uid(), name, linkedAccountId, closingDay, paymentDay, memo });
+    }
+    saveState();
+    closeModal();
+    renderTabContent();
+    toast('保存しました');
+  };
+}
+
+/* ================= Categories ================= */
+function renderCategories(){
+  const groups = ['income','fixed','variable','savings'];
+  const groupHtml = groups.map(g=>{
+    const cats = state.categories.filter(c=>c.type===g);
+    const rows = cats.map(c=>{
+      const used = state.transactions.some(t=>t.categoryId===c.id);
+      return `<tr>
+        <td><span class="type-tag type-${c.type}">${c.name}</span></td>
+        <td style="color:var(--dim2);font-size:12px;">${c.monthlyBudget ? `目安 ${yen(c.monthlyBudget)}/月` : (used?'使用中':'未使用')}</td>
+        <td>
+          <div class="row-actions">
+            <button class="icon-btn" data-edit-cat="${c.id}" title="編集">✎</button>
+            <button class="icon-btn" data-del-cat="${c.id}" title="削除" ${used?'style="opacity:.35;cursor:not-allowed;" disabled':''}>✕</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="panel">
+        <h3>${TYPE_LABEL[g]}</h3>
+        <table><tbody>${rows || `<tr><td class="empty-state" colspan="3">カテゴリなし</td></tr>`}</tbody></table>
+        <div class="section-gap"><button class="btn secondary small" data-add-cat="${g}">+ ${TYPE_LABEL[g]}を追加</button></div>
+      </div>`;
+  }).join('');
+  return groupHtml;
+}
+
+function afterRenderCategories(){
+  document.querySelectorAll('[data-add-cat]').forEach(btn=>{
+    btn.onclick = ()=> openCategoryForm(null, btn.dataset.addCat);
+  });
+  document.querySelectorAll('[data-edit-cat]').forEach(btn=>{
+    btn.onclick = ()=> openCategoryForm(catById(btn.dataset.editCat));
+  });
+  document.querySelectorAll('[data-del-cat]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(btn.disabled) return;
+      if(confirm('このカテゴリを削除しますか?')){
+        state.categories = state.categories.filter(c=>c.id!==btn.dataset.delCat);
+        saveState(); renderTabContent(); toast('削除しました');
+      }
+    };
+  });
+}
+
+function openCategoryForm(existing, defaultType){
+  const isEdit = !!existing;
+  const c = existing || { name:'', type: defaultType || 'variable', monthlyBudget:'' };
+  openModal(`
+    <h3>${isEdit?'カテゴリを編集':'カテゴリを追加'}</h3>
+    <div class="field"><label>カテゴリ名</label><input type="text" id="fCatName" value="${c.name}" placeholder="例: 電気代"></div>
+    <div class="field">
+      <label>タイプ</label>
+      <select id="fCatType" ${isEdit && (c.id==='sav_travel')?'disabled':''}>
+        <option value="income" ${c.type==='income'?'selected':''}>収入</option>
+        <option value="fixed" ${c.type==='fixed'?'selected':''}>固定費</option>
+        <option value="variable" ${c.type==='variable'?'selected':''}>変動費</option>
+        <option value="savings" ${c.type==='savings'?'selected':''}>貯蓄</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>月間予算の目安(任意)</label>
+      <input type="number" id="fCatBudget" value="${c.monthlyBudget||''}" min="0" placeholder="例: 15000">
+      <div class="help-text">光熱費のように毎月金額が変わりCSVで後から取り込む費目でも、だいたいの目安額を入れておくと「サブスク余力」の見積もりに使われます。定期取引が登録されている費目はそちらの金額が優先されます。</div>
+    </div>
+    <div class="modal-close-row">
+      <button class="btn secondary" id="btnCancelCat">キャンセル</button>
+      <button class="btn" id="btnSaveCat">保存</button>
+    </div>
+  `);
+  document.getElementById('btnCancelCat').onclick = closeModal;
+  document.getElementById('btnSaveCat').onclick = ()=>{
+    const name = document.getElementById('fCatName').value.trim();
+    const type = document.getElementById('fCatType').value;
+    const monthlyBudget = parseFloat(document.getElementById('fCatBudget').value) || 0;
+    if(!name){ toast('カテゴリ名を入力してください'); return; }
+    if(isEdit){
+      existing.name = name;
+      if(existing.id !== 'sav_travel') existing.type = type;
+      existing.monthlyBudget = monthlyBudget;
+    } else {
+      state.categories.push({ id: uid(), name, type, monthlyBudget });
+    }
+    saveState();
+    closeModal();
+    renderTabContent();
+    toast('保存しました');
+  };
+}
+
+/* ================= Travel Savings ================= */
+function renderTravel(){
+  const goal = state.settings.travelGoal;
+  const progress = computeTravelProgress(currentMonth);
+  const travelTxs = state.transactions
+    .filter(t=>t.categoryId==='sav_travel')
+    .sort((a,b)=> b.date.localeCompare(a.date))
+    .slice(0,10);
+
+  let progressPanel = '';
+  if(goal && progress){
+    const pctSaved = clamp(progress.savedSoFar / goal.amount, 0, 1) * 100;
+    const onTrack = progress.onTrackRatio >= 1;
+    progressPanel = `
+      <div class="panel">
+        <h3>旅行貯蓄の進捗</h3>
+        <div class="grid2">
+          <div class="kpi-card"><div class="kpi-label">目標金額</div><div class="kpi-val mono neutral">${yen(goal.amount)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">達成予定月</div><div class="kpi-val mono neutral">${monthLabel(goal.targetMonth)}</div></div>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${pctSaved}%;"></div></div>
+        <div class="help-text">現在の貯蓄額 ${yen(progress.savedSoFar)} / 目標 ${yen(goal.amount)}(${Math.round(pctSaved)}%)</div>
+        <div class="grid3 section-gap">
+          <div class="kpi-card"><div class="kpi-label">必要ペース/月</div><div class="kpi-val mono neutral" style="font-size:15px;">${yen(progress.requiredPace)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">実際のペース/月</div><div class="kpi-val mono ${onTrack?'pos':'neg'}" style="font-size:15px;">${yen(progress.actualPace)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">残り月数</div><div class="kpi-val mono neutral" style="font-size:15px;">${progress.monthsRemaining}ヶ月</div></div>
+        </div>
+        <p class="help-text" style="margin-top:10px;color:${onTrack?'var(--jade)':'var(--coral)'};">
+          ${onTrack ? '✓ 目標ペースを維持できています。' : '△ 現在のペースでは目標に届きません。月々の積立を見直しましょう。'}
+        </p>
+      </div>`;
+  } else {
+    progressPanel = `<div class="panel"><div class="empty-state">旅行貯蓄の目標がまだ設定されていません。下のフォームから設定してください。</div></div>`;
+  }
+
+  return `
+    ${progressPanel}
+    <div class="panel">
+      <h3>目標を設定</h3>
+      <div class="form-row">
+        <div class="field"><label>目標金額</label><input type="number" id="fGoalAmount" value="${goal?.amount||''}" placeholder="例: 300000"></div>
+        <div class="field"><label>開始月</label><input type="month" id="fGoalStart" value="${goal?.startMonth||currentMonth}"></div>
+        <div class="field"><label>達成予定月</label><input type="month" id="fGoalTarget" value="${goal?.targetMonth||''}"></div>
+      </div>
+      <button class="btn" id="btnSaveGoal">保存</button>
+    </div>
+    <div class="panel">
+      <h3>旅行貯蓄の入出金履歴(直近10件)</h3>
+      ${travelTxs.length ? `
+      <table>
+        <thead><tr><th>日付</th><th>金額</th><th>メモ</th></tr></thead>
+        <tbody>${travelTxs.map(t=>`<tr><td class="mono">${t.date}</td><td class="mono">${yen(t.amount)}</td><td style="color:var(--dim2);font-size:12px;">${t.memo||''}</td></tr>`).join('')}</tbody>
+      </table>` : `<div class="empty-state">まだ記録がありません。「取引明細」タブから旅行貯蓄カテゴリで積立を記録してください。</div>`}
+    </div>
+  `;
+}
+
+function afterRenderTravel(){
+  const btn = document.getElementById('btnSaveGoal');
+  if(!btn) return;
+  btn.onclick = ()=>{
+    const amount = parseFloat(document.getElementById('fGoalAmount').value);
+    const startMonth = document.getElementById('fGoalStart').value;
+    const targetMonth = document.getElementById('fGoalTarget').value;
+    if(isNaN(amount) || amount<=0 || !targetMonth){ toast('目標金額と達成予定月を入力してください'); return; }
+    state.settings.travelGoal = { amount, startMonth, targetMonth };
+    saveState();
+    renderTabContent();
+    toast('目標を保存しました');
+  };
+}
+
+/* ================= Data management (backup / restore) ================= */
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function exportData(){
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `money-flow-backup-${todayStr()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('バックアップファイルを保存しました');
+}
+
+function importDataFromFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    let parsed;
+    try{
+      parsed = JSON.parse(e.target.result);
+    }catch(err){
+      toast('ファイルを読み込めませんでした(JSON形式ではありません)');
+      return;
+    }
+    if(!parsed || !Array.isArray(parsed.categories) || !Array.isArray(parsed.transactions)){
+      toast('このツール用のバックアップファイルではないようです');
+      return;
+    }
+    if(!confirm('現在のデータをすべて置き換えます。よろしいですか?(この操作は元に戻せません)')) return;
+    state = {
+      categories: parsed.categories,
+      transactions: parsed.transactions,
+      settings: parsed.settings || {},
+      recurring: parsed.recurring || [],
+      appliedRecurring: parsed.appliedRecurring || [],
+      accounts: parsed.accounts || [],
+      cards: parsed.cards || [],
+      transfers: parsed.transfers || [],
+    };
+    saveState();
+    renderApp();
+    toast('データを読み込みました');
+  };
+  reader.readAsText(file);
+}
+
+function renderDataManagement(){
+  const txCount = state.transactions.length;
+  const catCount = state.categories.length;
+  const recCount = state.recurring.length;
+  let sizeKb = 0;
+  try{ sizeKb = Math.round((JSON.stringify(state).length / 1024) * 10) / 10; }catch(e){}
+
+  return `
+    <div class="panel">
+      <h3>現在のデータ</h3>
+      <div class="grid3">
+        <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-val mono neutral">${txCount}</div></div>
+        <div class="kpi-card"><div class="kpi-label">カテゴリ数</div><div class="kpi-val mono neutral">${catCount}</div></div>
+        <div class="kpi-card"><div class="kpi-label">定期取引数</div><div class="kpi-val mono neutral">${recCount}</div></div>
+      </div>
+      <p class="help-text">データはこの端末のブラウザ(localStorage)に保存されています。約${sizeKb}KB。下の「複数端末で同期」を設定していない場合、ブラウザのデータを消去したり別の端末・別のブラウザで開いたりすると引き継がれないため、定期的にバックアップの保存をおすすめします。</p>
+    </div>
+
+    <div class="panel">
+      <h3>複数端末で同期(GAS + Google Sheets)</h3>
+      <p class="help-text">Google Apps ScriptのウェブアプリURLを設定すると、保存するたびに自動でバックグラウンド同期し、他の端末(PC/スマホ)でも同じデータを開けます。設定するとまずスプレッドシート側のデータを取得して現在のデータを置き換えます。</p>
+      <div class="field"><label>ウェブアプリURL</label><input type="text" id="syncApiUrl" value="${syncConfig.apiUrl||''}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <div class="field"><label>アクセストークン(任意・Code.gs側で設定した場合)</label><input type="text" id="syncToken" value="${syncConfig.token||''}" placeholder="任意"></div>
+      <div class="field"><label>端末名(任意・どの端末から保存したか分かるように)</label><input type="text" id="syncDeviceName" value="${syncConfig.deviceName||''}" placeholder="例: iPhone, 会社PC"></div>
+      <div class="filter-row">
+        <button class="btn" id="btnSaveSyncConfig">設定を保存して同期を開始</button>
+        ${syncConfig.apiUrl ? `<button class="btn secondary" id="btnManualPull">最新を取得(受信)</button>
+        <button class="btn secondary" id="btnManualPush">今すぐ送信</button>
+        <button class="btn secondary" id="btnDisableSync">同期を解除</button>` : ''}
+      </div>
+      ${syncStatus==='conflict' ? `<p class="help-text" style="color:var(--coral);">⚠ 他の端末が先に保存しています。「最新を取得」してから編集し直してください。「今すぐ送信」で強制的に上書きすることもできますが、他の端末の変更が失われる可能性があります。</p>` : ''}
+    </div>
+
+    <div class="panel">
+      <h3>バックアップを保存</h3>
+      <p class="help-text">取引明細・カテゴリ・定期取引・旅行貯蓄の目標をすべて含む1つのファイル(JSON)としてダウンロードします。</p>
+      <button class="btn" id="btnExportData">バックアップをダウンロード</button>
+    </div>
+
+    <div class="panel">
+      <h3>バックアップから復元</h3>
+      <p class="help-text">以前保存したバックアップファイルを読み込みます。<strong style="color:var(--coral);">現在のデータはすべて上書きされます。</strong></p>
+      <div class="field"><input type="file" id="importFile" accept="application/json,.json"></div>
+      <button class="btn secondary" id="btnImportData">このファイルで復元する</button>
+    </div>
+
+    <div class="panel">
+      <h3>すべてのデータを削除</h3>
+      <p class="help-text">この端末に保存されている取引・カテゴリ・定期取引・設定をすべて消去し、初期状態に戻します。</p>
+      <button class="btn danger" id="btnResetData">すべて削除してリセット</button>
+    </div>
+  `;
+}
+
+function afterRenderDataManagement(){
+  const exportBtn = document.getElementById('btnExportData');
+  if(exportBtn) exportBtn.onclick = exportData;
+
+  const importBtn = document.getElementById('btnImportData');
+  if(importBtn) importBtn.onclick = ()=>{
+    const fileInput = document.getElementById('importFile');
+    const file = fileInput.files[0];
+    if(!file){ toast('ファイルを選択してください'); return; }
+    importDataFromFile(file);
+  };
+
+  const resetBtn = document.getElementById('btnResetData');
+  if(resetBtn) resetBtn.onclick = ()=>{
+    if(!confirm('本当にすべてのデータを削除しますか?この操作は元に戻せません。')) return;
+    if(!confirm('最終確認:バックアップは保存済みですか?削除を実行してよろしいですか?')) return;
+    state = { categories: defaultCategories(), transactions: [], settings: {}, recurring: [], appliedRecurring: [], accounts: [], cards: [], transfers: [] };
+    saveState();
+    renderApp();
+    toast('データを削除し、初期状態に戻しました');
+  };
+
+  const saveSyncBtn = document.getElementById('btnSaveSyncConfig');
+  if(saveSyncBtn) saveSyncBtn.onclick = async ()=>{
+    const apiUrl = document.getElementById('syncApiUrl').value.trim();
+    const token = document.getElementById('syncToken').value.trim();
+    const deviceName = document.getElementById('syncDeviceName').value.trim();
+    if(!apiUrl){ toast('ウェブアプリURLを入力してください'); return; }
+    syncConfig = { apiUrl, token, deviceName, lastKnownRemoteUpdatedAt: null };
+    saveSyncConfig();
+    toast('設定を保存しました。同期を開始します…');
+    await initialSync();
+    renderTabContent();
+  };
+  const pullBtn = document.getElementById('btnManualPull');
+  if(pullBtn) pullBtn.onclick = async ()=>{
+    const remoteData = await pullFromRemote();
+    if(remoteData){
+      if(!confirm('スプレッドシート側の最新データで、この端末のデータを置き換えます。よろしいですか?')) return;
+      state = normalizeLoadedState_(remoteData);
+      saveState();
+      renderApp();
+      toast('最新データを取得しました');
+    }
+  };
+  const pushBtn = document.getElementById('btnManualPush');
+  if(pushBtn) pushBtn.onclick = ()=> pushToRemote(true);
+  const disableBtn = document.getElementById('btnDisableSync');
+  if(disableBtn) disableBtn.onclick = ()=>{
+    if(!confirm('同期設定を解除しますか?(データ自体は削除されません)')) return;
+    syncConfig = { apiUrl:'', token:'', deviceName:'', lastKnownRemoteUpdatedAt: null };
+    saveSyncConfig();
+    updateSyncStatus('idle');
+    renderTabContent();
+    toast('同期を解除しました');
+  };
+}
+
+/* ================= init ================= */
+renderApp();
+initialSync();
+</script>
+</body>
+</html>
