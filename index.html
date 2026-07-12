@@ -291,8 +291,11 @@ function loadState(){
   return { categories: defaultCategories(), transactions: [], settings: {}, recurring: [], appliedRecurring: [], accounts: [], cards: [], transfers: [] };
 }
 
-function saveState(){
+function persistLocal(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function saveState(){
+  persistLocal();
   scheduleSyncPush();
 }
 
@@ -321,6 +324,16 @@ function scheduleSyncPush(){
   if(!syncConfig.apiUrl) return;
   clearTimeout(syncPushTimer);
   syncPushTimer = setTimeout(()=> pushToRemote(false), 1500);
+}
+
+// 「空」とみなせるかどうか(初期状態のカテゴリだけの状態なども空扱い)
+function isStateEmpty(s){
+  if(!s) return true;
+  return (!s.transactions || !s.transactions.length) &&
+         (!s.accounts || !s.accounts.length) &&
+         (!s.cards || !s.cards.length) &&
+         (!s.recurring || !s.recurring.length) &&
+         (!s.transfers || !s.transfers.length);
 }
 
 async function pushToRemote(force){
@@ -353,6 +366,7 @@ async function pushToRemote(force){
   }
 }
 
+// 明示的な「最新を取得」ボタン用(呼び出し側で上書き確認を行う)
 async function pullFromRemote(){
   if(!syncConfig.apiUrl) return null;
   updateSyncStatus('syncing');
@@ -375,14 +389,49 @@ async function pullFromRemote(){
   }
 }
 
+// アプリ起動時・同期設定時に自動で呼ばれる。
+// リモートが空でローカルにデータがある場合は「アップロード」、
+// リモートに既にデータがある場合はそちらを取り込む。
+// ローカルのデータを空のリモートで上書きしてしまうことがないよう安全側に倒している。
 async function initialSync(){
   if(!syncConfig.apiUrl) return;
-  const remoteData = await pullFromRemote();
-  if(remoteData){
-    state = normalizeLoadedState_(remoteData);
-    saveState();
-    renderApp();
-    toast('GASと同期しました');
+  updateSyncStatus('syncing');
+  try{
+    const url = syncConfig.apiUrl + (syncConfig.token ? ('?token=' + encodeURIComponent(syncConfig.token)) : '');
+    const res = await fetch(url);
+    const json = await res.json();
+    if(!json.ok){ updateSyncStatus('error', json.error); return; }
+
+    const remoteData = json.data;
+    const remoteEmpty = isStateEmpty(remoteData);
+    const localEmpty = isStateEmpty(state);
+    const remoteChanged = json.updatedAt !== syncConfig.lastKnownRemoteUpdatedAt;
+
+    if(remoteEmpty && !localEmpty){
+      // スプレッドシート側がまだ空 → 今のローカルデータをアップロードする(消さない)
+      syncConfig.lastKnownRemoteUpdatedAt = json.updatedAt;
+      saveSyncConfig();
+      await pushToRemote(true);
+      toast('スプレッドシート側が空だったため、この端末のデータをアップロードしました');
+      return;
+    }
+
+    if(!remoteEmpty && remoteChanged){
+      state = normalizeLoadedState_(remoteData);
+      syncConfig.lastKnownRemoteUpdatedAt = json.updatedAt;
+      saveSyncConfig();
+      persistLocal();
+      renderApp();
+      updateSyncStatus('synced');
+      toast('GASの最新データを取り込みました');
+      return;
+    }
+
+    syncConfig.lastKnownRemoteUpdatedAt = json.updatedAt;
+    saveSyncConfig();
+    updateSyncStatus('synced');
+  }catch(err){
+    updateSyncStatus('error', String(err));
   }
 }
 function normalizeLoadedState_(parsed){
