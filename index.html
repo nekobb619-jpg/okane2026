@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>流動帳 | Money Flow Score</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -216,24 +215,6 @@ tr:last-child td{border-bottom:none;}
    ========================================================= */
 
 const STORAGE_KEY = 'moneyFlowLedger_v1';
-const DRIVE_CONFIG_KEY = 'moneyFlowLedger_driveConfig_v1';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-
-function loadDriveConfig(){
-  try{
-    const raw = localStorage.getItem(DRIVE_CONFIG_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  return { clientId: '', fileName: 'money-flow-score-data.json', fileId: null, lastSavedAt: null };
-}
-function saveDriveConfig(){
-  localStorage.setItem(DRIVE_CONFIG_KEY, JSON.stringify(driveConfig));
-}
-let driveConfig = loadDriveConfig();
-let driveAccessToken = null;
-let driveTokenExpiry = 0;
-let driveTokenClient = null;
-let driveStatus = 'idle'; // idle | signing_in | saving | loading | error
 
 const PAYMENT_METHODS_BY_TYPE = {
   income: ['銀行振込','現金','その他'],
@@ -299,149 +280,6 @@ function normalizeLoadedState_(parsed){
 
 function saveState(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-/* ---------- Google Drive 保存/読込 ---------- */
-function ensureGisLoaded(){
-  return new Promise((resolve, reject)=>{
-    if(window.google && google.accounts && google.accounts.oauth2){ resolve(); return; }
-    let tries = 0;
-    const iv = setInterval(()=>{
-      tries++;
-      if(window.google && google.accounts && google.accounts.oauth2){ clearInterval(iv); resolve(); }
-      else if(tries > 100){ clearInterval(iv); reject(new Error('Googleログイン用ライブラリを読み込めませんでした')); }
-    }, 100);
-  });
-}
-
-async function ensureDriveAuth(){
-  if(!driveConfig.clientId){ throw new Error('クライアントIDが未設定です'); }
-  if(driveAccessToken && Date.now() < driveTokenExpiry - 5000) return driveAccessToken;
-  await ensureGisLoaded();
-  return new Promise((resolve, reject)=>{
-    try{
-      if(!driveTokenClient){
-        driveTokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: driveConfig.clientId,
-          scope: DRIVE_SCOPE,
-          callback: ()=>{} // 呼び出しごとに上書きする
-        });
-      }
-      driveTokenClient.callback = (resp)=>{
-        if(resp && resp.access_token){
-          driveAccessToken = resp.access_token;
-          driveTokenExpiry = Date.now() + (resp.expires_in||3600) * 1000;
-          resolve(driveAccessToken);
-        } else {
-          reject(new Error('Googleログインに失敗しました'));
-        }
-      };
-      driveTokenClient.requestAccessToken({ prompt: driveAccessToken ? '' : 'consent' });
-    }catch(err){
-      reject(err);
-    }
-  });
-}
-
-function updateDriveStatus(status){
-  driveStatus = status;
-  const el = document.getElementById('driveStatusIndicator');
-  if(!el) return;
-  const map = {
-    idle: {icon:'○', color:'var(--dim2)', label: driveConfig.fileId ? 'リンク済み' : '未リンク'},
-    signing_in: {icon:'◐', color:'var(--gold)', label:'ログイン中…'},
-    saving: {icon:'◐', color:'var(--gold)', label:'保存中…'},
-    loading: {icon:'◐', color:'var(--gold)', label:'読込中…'},
-    error: {icon:'⚠', color:'var(--coral)', label:'エラー'},
-  };
-  const m = map[status] || map.idle;
-  el.innerHTML = `<span style="color:${m.color};font-size:11px;">${m.icon} ${m.label}</span>`;
-}
-
-async function driveFindFileByName(name){
-  const token = await ensureDriveAuth();
-  const safe = name.replace(/'/g, "\\'");
-  const q = encodeURIComponent(`name = '${safe}' and trashed = false`);
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  const json = await res.json();
-  if(json.files && json.files.length) return json.files[0];
-  return null;
-}
-
-async function driveSaveJson(){
-  updateDriveStatus('saving');
-  try{
-    const token = await ensureDriveAuth();
-    const fileName = (driveConfig.fileName||'').trim() || 'money-flow-score-data.json';
-    driveConfig.fileName = fileName;
-    const content = JSON.stringify(state, null, 2);
-    let fileId = driveConfig.fileId;
-    if(!fileId){
-      const existing = await driveFindFileByName(fileName);
-      if(existing) fileId = existing.id;
-    }
-    if(fileId){
-      const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: content
-      });
-      if(!res.ok) throw new Error('保存に失敗しました(HTTP ' + res.status + ')');
-      driveConfig.fileId = fileId;
-    } else {
-      const boundary = 'moneyflowscore_boundary_314159265';
-      const metadata = { name: fileName, mimeType: 'application/json' };
-      const multipartBody =
-        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-        `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n` +
-        `--${boundary}--`;
-      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
-        body: multipartBody
-      });
-      const json = await res.json();
-      if(!json.id) throw new Error('新規作成に失敗しました');
-      driveConfig.fileId = json.id;
-    }
-    driveConfig.lastSavedAt = new Date().toISOString();
-    saveDriveConfig();
-    updateDriveStatus('idle');
-    return true;
-  }catch(err){
-    updateDriveStatus('error');
-    toast('Google Driveへの保存に失敗しました: ' + err.message);
-    return false;
-  }
-}
-
-async function driveLoadJson(){
-  updateDriveStatus('loading');
-  try{
-    const fileName = (driveConfig.fileName||'').trim() || 'money-flow-score-data.json';
-    let fileId = driveConfig.fileId;
-    if(!fileId){
-      const existing = await driveFindFileByName(fileName);
-      if(!existing) throw new Error(`「${fileName}」という名前のファイルが見つかりません`);
-      fileId = existing.id;
-      driveConfig.fileId = fileId;
-      saveDriveConfig();
-    }
-    const token = await ensureDriveAuth();
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if(!res.ok) throw new Error('読み込みに失敗しました(HTTP ' + res.status + ')');
-    const json = await res.json();
-    updateDriveStatus('idle');
-    return json;
-  }catch(err){
-    updateDriveStatus('error');
-    toast('Google Driveからの読み込みに失敗しました: ' + err.message);
-    return null;
-  }
 }
 
 let state = loadState();
@@ -655,7 +493,7 @@ function renderHeader(){
     <div>
       <p class="eyebrow">Money Flow Ledger</p>
       <h1 class="title">流動帳</h1>
-      <div id="driveStatusIndicator" style="margin-top:2px;"></div>
+      <div id="fsStatusIndicator" style="margin-top:2px;"></div>
     </div>
     <div class="month-picker">
       <button id="monthPrev" aria-label="前の月">‹</button>
@@ -665,7 +503,7 @@ function renderHeader(){
   </div>`;
 }
 function attachHeaderEvents(){
-  updateDriveStatus(driveStatus);
+  renderFsStatusIndicator();
   document.getElementById('monthPrev').onclick = ()=>{
     currentMonth = shiftMonth(currentMonth, -1);
     txFilter.month = currentMonth;
@@ -2703,6 +2541,93 @@ function exportData(){
   toast('バックアップファイルを保存しました');
 }
 
+/* ---------- PCへの上書き保存(File System Access API) ---------- */
+const FS_ACCESS_SUPPORTED = typeof window.showSaveFilePicker === 'function';
+let savedFileHandle = null;
+
+function idbOpen_(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open('moneyFlowLedgerFS_v1', 1);
+    req.onupgradeneeded = ()=> req.result.createObjectStore('handles');
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function idbSetHandle_(handle){
+  const db = await idbOpen_();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(handle, 'fileHandle');
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
+  });
+}
+async function idbGetHandle_(){
+  const db = await idbOpen_();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction('handles', 'readonly');
+    const req = tx.objectStore('handles').get('fileHandle');
+    req.onsuccess = ()=> resolve(req.result || null);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+
+async function pickSaveFile(){
+  try{
+    const handle = await window.showSaveFilePicker({
+      suggestedName: 'money-flow-score-data.json',
+      types: [{ description: 'JSON', accept: {'application/json': ['.json']} }]
+    });
+    savedFileHandle = handle;
+    await idbSetHandle_(handle);
+    await writeToSavedFile(true);
+    renderTabContent();
+    renderFsStatusIndicator();
+  }catch(err){
+    if(err.name !== 'AbortError') toast('保存先の選択に失敗しました');
+  }
+}
+
+async function writeToSavedFile(silent){
+  if(!savedFileHandle){ toast('先に保存先ファイルを選択してください'); return; }
+  try{
+    const perm = await savedFileHandle.queryPermission({ mode: 'readwrite' });
+    if(perm !== 'granted'){
+      const req = await savedFileHandle.requestPermission({ mode: 'readwrite' });
+      if(req !== 'granted'){ toast('書き込み許可が得られませんでした'); return; }
+    }
+    const writable = await savedFileHandle.createWritable();
+    await writable.write(JSON.stringify(state, null, 2));
+    await writable.close();
+    if(!silent) toast(`「${savedFileHandle.name}」に上書き保存しました`);
+  }catch(err){
+    toast('保存に失敗しました: ' + err.message);
+  }
+}
+
+async function tryRestoreSavedFileHandle(){
+  if(!FS_ACCESS_SUPPORTED) return;
+  try{
+    const handle = await idbGetHandle_();
+    if(handle){
+      savedFileHandle = handle;
+      renderTabContent();
+      renderFsStatusIndicator();
+    }
+  }catch(err){}
+}
+
+function renderFsStatusIndicator(){
+  const el = document.getElementById('fsStatusIndicator');
+  if(!el) return;
+  if(!FS_ACCESS_SUPPORTED){ el.innerHTML = ''; return; }
+  if(savedFileHandle){
+    el.innerHTML = `<span style="color:var(--jade);font-size:11px;">● 保存先: ${savedFileHandle.name}</span>`;
+  } else {
+    el.innerHTML = `<span style="color:var(--dim2);font-size:11px;">○ 保存先未設定</span>`;
+  }
+}
+
 function importDataFromFile(file){
   const reader = new FileReader();
   reader.onload = (e)=>{
@@ -2750,31 +2675,32 @@ function renderDataManagement(){
         <div class="kpi-card"><div class="kpi-label">カテゴリ数</div><div class="kpi-val mono neutral">${catCount}</div></div>
         <div class="kpi-card"><div class="kpi-label">定期取引数</div><div class="kpi-val mono neutral">${recCount}</div></div>
       </div>
-      <p class="help-text">データはこの端末のブラウザ(localStorage)に保存されています。約${sizeKb}KB。下の「Google Driveに保存」を使っていない場合、ブラウザのデータを消去したり別の端末・別のブラウザで開いたりすると引き継がれないため、定期的にバックアップの保存をおすすめします。</p>
+      <p class="help-text">データはこの端末のブラウザ(localStorage)に保存されています。約${sizeKb}KB。ブラウザのデータを消去したり、別の端末・別のブラウザで開いたりすると引き継がれないため、下の「PCに保存」または定期的なバックアップをおすすめします。</p>
     </div>
 
+    ${FS_ACCESS_SUPPORTED ? `
     <div class="panel">
-      <h3>Google Driveに保存・読込</h3>
-      <p class="help-text">好きなファイル名でGoogle Drive上のJSONファイルに保存し、上書き保存・読み込みができます。自動での多端末同期ではなく、ボタンを押したタイミングで保存/読込する方式です。</p>
-      <div class="field">
-        <label>クライアントID</label>
-        <input type="text" id="driveClientId" value="${driveConfig.clientId||''}" placeholder="xxxxxxxx.apps.googleusercontent.com">
-        <div class="help-text">Google Cloud Consoleで「OAuthクライアントID」(種類: ウェブアプリケーション)を作成し、承認済みのJavaScript生成元にこのページのURL(例: https://xxxx.github.io)を追加してください。</div>
-      </div>
-      <div class="field"><label>ファイル名</label><input type="text" id="driveFileName" value="${driveConfig.fileName||'money-flow-score-data.json'}" placeholder="money-flow-score-data.json"></div>
-      <div class="filter-row">
-        <button class="btn secondary" id="btnDriveSaveClientId">クライアントIDを保存</button>
-        <button class="btn" id="btnDriveSave">Google Driveに保存(上書き)</button>
-        <button class="btn secondary" id="btnDriveLoad">Google Driveから読込</button>
-        ${driveConfig.fileId ? `<button class="btn secondary" id="btnDriveUnlink">リンク解除</button>` : ''}
-      </div>
-      ${driveConfig.fileId ? `<p class="help-text">リンク中のファイル: 「${driveConfig.fileName}」${driveConfig.lastSavedAt ? ` ・ 最終保存: ${new Date(driveConfig.lastSavedAt).toLocaleString('ja-JP')}` : ''}</p>` : `<p class="help-text">まだファイルとリンクしていません。「保存」を押すと同名のファイルが無ければ新規作成、あれば上書きします。</p>`}
-    </div>
+      <h3>PCに保存(同じファイルに上書き)</h3>
+      <p class="help-text">保存先のファイルを1回選んでおけば、次回からは同じファイルに上書き保存できます(ファイルが何個も増えません)。この機能はPCのChrome・Edgeなど対応ブラウザでのみ使えます。スマホでは非対応のため、下の「バックアップをダウンロード」をお使いください。</p>
+      ${savedFileHandle ? `
+        <p class="help-text">保存先: <strong>${savedFileHandle.name}</strong></p>
+        <div class="filter-row">
+          <button class="btn" id="btnOverwriteSave">上書き保存</button>
+          <button class="btn secondary" id="btnChangeSaveFile">保存先を変更</button>
+        </div>
+      ` : `
+        <button class="btn" id="btnPickSaveFile">保存先ファイルを選択</button>
+        <p class="help-text">既存のバックアップファイルを選べばそのファイルに上書きされ、新しいファイル名を入力すれば新規作成されます。</p>
+      `}
+    </div>` : `
+    <div class="panel">
+      <p class="help-text">このブラウザは「同じファイルへの上書き保存」に対応していません(PCのChrome・Edgeで開くと利用できます)。下の「バックアップをダウンロード」をお使いください。</p>
+    </div>`}
 
     <div class="panel">
       <h3>バックアップを保存</h3>
-      <p class="help-text">取引明細・カテゴリ・定期取引・旅行貯蓄の目標をすべて含む1つのファイル(JSON)としてダウンロードします。</p>
-      <button class="btn" id="btnExportData">バックアップをダウンロード</button>
+      <p class="help-text">取引明細・カテゴリ・定期取引・旅行貯蓄の目標をすべて含む1つのファイル(JSON)としてダウンロードします。ボタンを押すたびに新しいファイルとして保存されます。</p>
+      <button class="btn secondary" id="btnExportData">バックアップをダウンロード</button>
     </div>
 
     <div class="panel">
@@ -2814,50 +2740,17 @@ function afterRenderDataManagement(){
     toast('データを削除し、初期状態に戻しました');
   };
 
-  const saveClientIdBtn = document.getElementById('btnDriveSaveClientId');
-  if(saveClientIdBtn) saveClientIdBtn.onclick = ()=>{
-    driveConfig.clientId = document.getElementById('driveClientId').value.trim();
-    driveConfig.fileName = document.getElementById('driveFileName').value.trim() || 'money-flow-score-data.json';
-    saveDriveConfig();
-    toast('保存しました');
-  };
-  const driveSaveBtn = document.getElementById('btnDriveSave');
-  if(driveSaveBtn) driveSaveBtn.onclick = async ()=>{
-    driveConfig.clientId = document.getElementById('driveClientId').value.trim();
-    driveConfig.fileName = document.getElementById('driveFileName').value.trim() || 'money-flow-score-data.json';
-    saveDriveConfig();
-    if(!driveConfig.clientId){ toast('クライアントIDを入力してください'); return; }
-    const ok = await driveSaveJson();
-    if(ok){ toast('Google Driveに保存しました'); renderTabContent(); }
-  };
-  const driveLoadBtn = document.getElementById('btnDriveLoad');
-  if(driveLoadBtn) driveLoadBtn.onclick = async ()=>{
-    driveConfig.clientId = document.getElementById('driveClientId').value.trim();
-    driveConfig.fileName = document.getElementById('driveFileName').value.trim() || 'money-flow-score-data.json';
-    saveDriveConfig();
-    if(!driveConfig.clientId){ toast('クライアントIDを入力してください'); return; }
-    const data = await driveLoadJson();
-    if(data){
-      if(!confirm(`Google Drive上の「${driveConfig.fileName}」で、この端末のデータを置き換えます。よろしいですか?`)) return;
-      state = normalizeLoadedState_(data);
-      saveState();
-      renderApp();
-      toast('Google Driveから読み込みました');
-    }
-  };
-  const unlinkBtn = document.getElementById('btnDriveUnlink');
-  if(unlinkBtn) unlinkBtn.onclick = ()=>{
-    if(!confirm('リンクを解除しますか?(Drive上のファイル自体は削除されません)')) return;
-    driveConfig.fileId = null;
-    driveConfig.lastSavedAt = null;
-    saveDriveConfig();
-    renderTabContent();
-    toast('リンクを解除しました');
-  };
+  const pickBtn = document.getElementById('btnPickSaveFile');
+  if(pickBtn) pickBtn.onclick = pickSaveFile;
+  const changeBtn = document.getElementById('btnChangeSaveFile');
+  if(changeBtn) changeBtn.onclick = pickSaveFile;
+  const overwriteBtn = document.getElementById('btnOverwriteSave');
+  if(overwriteBtn) overwriteBtn.onclick = ()=> writeToSavedFile(false);
 }
 
 /* ================= init ================= */
 renderApp();
+tryRestoreSavedFileHandle();
 </script>
 </body>
 </html>
