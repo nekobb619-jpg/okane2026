@@ -285,7 +285,7 @@ function saveState(){
 let state = loadState();
 let currentTab = 'dashboard';
 let currentMonth = new Date().toISOString().slice(0,7);
-let txFilter = { month: currentMonth, type: 'all', search: '', flaggedOnly: false };
+let txFilter = { month: currentMonth, type: 'all', search: '', flaggedOnly: false, sort: 'date_desc' };
 let selectedTxIds = new Set();
 
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
@@ -930,6 +930,12 @@ function renderTransactions(){
   if(txFilter.month !== 'all' && !months.includes(txFilter.month)) txFilter.month = currentMonth;
   const baseTxs = txFilter.month === 'all' ? state.transactions.slice() : txForMonth(txFilter.month);
   const searchTerm = (txFilter.search||'').trim().toLowerCase();
+  const sortFns = {
+    date_desc: (a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
+    date_asc: (a,b)=> a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
+    amount_desc: (a,b)=> b.amount - a.amount,
+    amount_asc: (a,b)=> a.amount - b.amount,
+  };
   const txs = baseTxs
     .filter(t => txFilter.type === 'all' || catById(t.categoryId)?.type === txFilter.type)
     .filter(t => !txFilter.flaggedOnly || t.flagged)
@@ -939,7 +945,7 @@ function renderTransactions(){
       const haystack = [t.memo, cat?.name, t.payment, paymentSourceLabel(t)].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(searchTerm);
     })
-    .sort((a,b)=> b.date.localeCompare(a.date));
+    .sort(sortFns[txFilter.sort] || sortFns.date_desc);
 
   const rows = txs.map(t=>{
     const cat = catById(t.categoryId);
@@ -970,6 +976,7 @@ function renderTransactions(){
   const hasSourceOptions = state.accounts.length || state.cards.length;
   const unlinkedCount = txs.filter(t=>!t.accountId && !t.cardId).length;
   const uniquePayments = Array.from(new Set(txs.map(t=>t.payment).filter(Boolean)));
+  const totalAmount = txs.reduce((s,t)=>s+t.amount, 0);
 
   return `
     ${pending > 0 ? `
@@ -999,6 +1006,15 @@ function renderTransactions(){
           </select>
         </div>
         <div class="field">
+          <label>並び替え</label>
+          <select id="txSortFilter">
+            <option value="date_desc" ${txFilter.sort==='date_desc'?'selected':''}>日付(新しい順)</option>
+            <option value="date_asc" ${txFilter.sort==='date_asc'?'selected':''}>日付(古い順)</option>
+            <option value="amount_desc" ${txFilter.sort==='amount_desc'?'selected':''}>金額(高い順)</option>
+            <option value="amount_asc" ${txFilter.sort==='amount_asc'?'selected':''}>金額(低い順)</option>
+          </select>
+        </div>
+        <div class="field">
           <label>名称検索</label>
           <input type="text" id="txSearchFilter" value="${txFilter.search||''}" placeholder="例: 旅行積立, イオン" style="min-width:140px;">
         </div>
@@ -1009,6 +1025,7 @@ function renderTransactions(){
       <div class="filter-row" style="margin-top:2px;">
         <button class="btn ${txFilter.flaggedOnly?'':'secondary'} small" id="btnToggleFlaggedOnly">🚩 フラグ付きのみ表示(${flaggedCount}件)${txFilter.flaggedOnly ? ' ✓' : ''}</button>
       </div>` : ''}
+      ${txs.length ? `<div class="filter-row" style="margin-top:2px;"><span style="font-size:12.5px;color:var(--dim);">件数: <span class="mono">${txs.length}</span>件 ・ 合計金額: <span class="mono neutral">${yen(totalAmount)}</span></span></div>` : ''}
       ${txs.length ? `
       <div class="filter-row" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;flex-wrap:wrap;">
         ${hasSourceOptions && unlinkedCount > 0 ? `<span style="font-size:12px;color:var(--gold);">支払元が未設定の取引が${unlinkedCount}件あります</span>
@@ -1020,6 +1037,8 @@ function renderTransactions(){
         <button class="btn secondary small" id="btnSelectByPayment">この支払方法を選択</button>` : ''}
         ${selCount > 0 ? `
           <span style="font-size:12px;color:var(--dim);">${selCount}件選択中</span>
+          <select id="bulkCategory" style="max-width:180px;"><option value="">(カテゴリを選択)</option>${categoryOptionsGrouped('')}</select>
+          <button class="btn small" id="btnApplyBulkCategory">選択した取引にカテゴリを設定</button>
           ${hasSourceOptions ? `<select id="bulkPaymentSource" style="max-width:200px;">${paymentSourceOptionsHtml('', '')}</select>
           <button class="btn small" id="btnApplyBulkSource">選択した取引に支払元を設定</button>` : ''}
           <button class="btn danger small" id="btnDeleteSelected">選択したすべてを削除</button>
@@ -1050,6 +1069,8 @@ function afterRenderTransactions(){
   if(mf) mf.onchange = (e)=>{ txFilter.month = e.target.value; selectedTxIds.clear(); renderTabContent(); };
   const tf = document.getElementById('txTypeFilter');
   if(tf) tf.onchange = (e)=>{ txFilter.type = e.target.value; selectedTxIds.clear(); renderTabContent(); };
+  const sortF = document.getElementById('txSortFilter');
+  if(sortF) sortF.onchange = (e)=>{ txFilter.sort = e.target.value; renderTabContent(); };
   const sf = document.getElementById('txSearchFilter');
   if(sf){
     let isComposing = false;
@@ -1129,6 +1150,20 @@ function afterRenderTransactions(){
     saveState();
     renderTabContent();
     toast(`${n}件削除しました`);
+  };
+  const applyBulkCategory = document.getElementById('btnApplyBulkCategory');
+  if(applyBulkCategory) applyBulkCategory.onclick = ()=>{
+    const categoryId = document.getElementById('bulkCategory').value;
+    if(!categoryId){ toast('カテゴリを選択してください'); return; }
+    let updated = 0;
+    selectedTxIds.forEach(id=>{
+      const t = state.transactions.find(tx=>tx.id===id);
+      if(t){ t.categoryId = categoryId; updated++; }
+    });
+    saveState();
+    selectedTxIds.clear();
+    renderTabContent();
+    toast(`${updated}件の取引のカテゴリを更新しました`);
   };
   const applyBulk = document.getElementById('btnApplyBulkSource');
   if(applyBulk) applyBulk.onclick = ()=>{
